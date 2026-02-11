@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitorizacion Online - Propuesta Niagara Sur</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+    --navy: #1e3a5f;
+    --navy-light: #e8edf4;
+    --navy-mid: #6b8bb5;
+    --navy-dark: #0f2440;
+    --red: #dc2626;
+    --amber: #d97706;
+    --green: #059669;
+    --dark: #1a1a2e;
+    --text: #666;
+    --text-dark: #333;
+    --bg: #f8f9fb;
+    --border: #e5e5e5;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text);
+    background: #e0e0e0;
+}
+
+/* Page base */
+.page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 20px auto;
+    background: #fff;
+    position: relative;
+    box-shadow: 0 4px 24px rgba(0,0,0,.15);
+    page-break-after: always;
+}
+
+.page-content {
+    padding: 52px 56px 44px;
+}
+
+.page-img {
+    width: 210mm;
+    height: 297mm;
+    overflow: hidden;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+/* Overlays */
+.cover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(10,22,45,.95) 0%, rgba(10,22,45,.85) 40%, rgba(10,22,45,.10) 100%);
+    z-index: 0;
+}
+
+.infog::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(10,20,40,.92) 0%, rgba(10,20,40,.88) 100%);
+    z-index: 0;
+}
+
+.closer::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(10,22,45,.95) 0%, rgba(10,22,45,.90) 50%, rgba(10,22,45,.70) 100%);
+    z-index: 0;
+}
+
+.page-img > * { position: relative; z-index: 1; }
+
+/* Topbar */
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #bbb;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+    padding-bottom: 8px;
+}
+.topbar .pnum { color: var(--navy); font-weight: 700; }
+
+/* Footer */
+.footer {
+    position: absolute;
+    bottom: 22px;
+    left: 56px;
+    right: 56px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 8px;
+    color: #ccc;
+}
+
+/* Typography */
+h1 { font-size: 42px; font-weight: 900; letter-spacing: -1px; color: var(--dark); line-height: 1.1; }
+h2 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; color: var(--dark); margin-bottom: 8px; }
+h3 { font-size: 14px; font-weight: 700; color: var(--dark); margin-bottom: 4px; }
+.lead { font-size: 13.5px; line-height: 1.7; color: var(--text); margin-bottom: 16px; }
+.sm { font-size: 11.5px; line-height: 1.6; color: var(--text); }
+.xs { font-size: 10px; color: #999; }
+
+/* Tag */
+.tag {
+    display: inline-block;
+    background: var(--navy-light);
+    color: var(--navy);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 3px 12px;
+    border-radius: 20px;
+    margin-bottom: 12px;
+}
+
+/* Info block */
+.info-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+}
+.info-block .val { font-size: 26px; font-weight: 900; color: var(--navy); }
+.info-block .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #999; }
+.info-block.accent-left { border-left: 4px solid var(--navy); }
+.info-block.accent-green { border-left: 4px solid var(--green); }
+.info-block.accent-amber { border-left: 4px solid var(--amber); }
+.info-block.accent-red { border-left: 4px solid var(--red); }
+
+/* Grids */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; }
+
+/* Scoring bars */
+.score-bar { margin-bottom: 10px; }
+.score-bar .bar-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.score-bar .bar-label { font-size: 11px; }
+.score-bar .bar-value { font-weight: 700; font-size: 11px; }
+.score-bar .bar-bg { height: 7px; background: #e5e7eb; border-radius: 4px; }
+.score-bar .bar-fill { height: 7px; border-radius: 4px; }
+
+/* Highlight boxes */
+.hl {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 12px;
+    color: #92400e;
+}
+.hl b { color: #78350f; }
+
+.hlp {
+    background: var(--navy-light);
+    border: 1px solid var(--navy-mid);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 12px;
+    color: var(--navy-dark);
+}
+
+/* Table */
+table { width: 100%; border-collapse: collapse; }
+thead th {
+    background: var(--navy);
+    color: #fff;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 8px;
+    text-align: left;
+    font-weight: 700;
+}
+td {
+    font-size: 11px;
+    padding: 5px 8px;
+    border-bottom: 1px solid #f0f0f0;
+    color: var(--text-dark);
+}
+tr:nth-child(even) td { background: #fafafa; }
+
+/* Dots */
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
+.dot-green { background: var(--green); }
+.dot-amber { background: var(--amber); }
+.dot-red { background: var(--red); }
+
+/* Rec cards */
+.rec { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f5f5f5; align-items: flex-start; }
+.rec-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; }
+.rec-p1 { background: #fee2e2; color: var(--red); }
+.rec-p2 { background: #fef3c7; color: var(--amber); }
+.rec-p3 { background: #d1fae5; color: var(--green); }
+.rec-title { font-size: 12px; font-weight: 700; color: var(--dark); }
+
+/* Cover bar */
+.cover-bar { width: 44px; height: 3px; background: #fff; margin-bottom: 24px; }
+
+/* CTA box */
+.cta-box {
+    backdrop-filter: blur(16px);
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 16px;
+    padding: 24px 32px;
+}
+
+/* Flow steps */
+.flow-step {
+    display: flex;
+    align-items: center;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+.flow-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 16px;
+}
+.flow-badge {
+    margin-left: auto;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+}
+
+/* Player card */
+.player-card {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    padding: 20px 24px;
+    border-radius: 16px;
+}
+.player-photo {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid rgba(255,255,255,.15);
+}
+.player-photo-sm {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--navy-light);
+}
+
+/* Spacers */
+.sp4 { height: 4px; }
+.sp6 { height: 6px; }
+.sp8 { height: 8px; }
+.sp10 { height: 10px; }
+.sp12 { height: 12px; }
+.sp16 { height: 16px; }
+.sp20 { height: 20px; }
+.sp24 { height: 24px; }
+
+/* Print */
+@media print {
+    body { background: #fff; }
+    .page { box-shadow: none; margin: 0; }
+}
+</style>
+</head>
+<body>
+
+<!-- PAGE 1: COVER -->
+<div class="page page-img cover" style="background-image: url('images/cover.png');">
+    <div style="padding: 0 56px 60px; flex: 1; display: flex; flex-direction: column; justify-content: flex-end;">
+        <div class="cover-bar"></div>
+        <div style="margin-bottom: 8px;">
+            <span style="font-size: 11px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--navy-mid);">Propuesta de servicio</span>
+        </div>
+        <h1 style="color: #fff; font-size: 44px; margin-bottom: 8px; max-width: 480px; line-height: 1.05;">Monitorizaci&oacute;n Online<br>de Jugadores</h1>
+        <p style="font-size: 17px; font-weight: 300; color: rgba(255,255,255,.7); margin-bottom: 32px; max-width: 420px;">
+            Prensa y redes sociales<br>de vuestros jugadores, bajo control
+        </p>
+        <div class="sp16"></div>
+        <div style="display: flex; gap: 24px;">
+            <div class="cta-box" style="flex: 1;">
+                <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,.4); margin-bottom: 4px;">Preparado para</div>
+                <div style="font-size: 18px; font-weight: 700; color: #fff;">Niagara Sur</div>
+                <div style="font-size: 11px; color: rgba(255,255,255,.5);">Agencia de Representaci&oacute;n</div>
+            </div>
+            <div class="cta-box" style="flex: 1;">
+                <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,.4); margin-bottom: 4px;">Fecha</div>
+                <div style="font-size: 18px; font-weight: 700; color: #fff;">Febrero 2026</div>
+                <div style="font-size: 11px; color: rgba(255,255,255,.5);">Documento confidencial</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PAGE 2: EL RETO -->
+<div class="page page-content">
+    <div class="topbar">
+        <span>Monitorizaci&oacute;n Online &mdash; Niagara Sur</span>
+        <span class="pnum">02</span>
+    </div>
+
+    <span class="tag">El reto</span>
+    <h2>Cada d&iacute;a se publican cientos de<br>contenidos sobre vuestros jugadores</h2>
+    <div class="sp8"></div>
+    <p class="lead">
+        Noticias en prensa, menciones en redes sociales, publicaciones del propio jugador, rumores de fichaje, pol&eacute;micas... El volumen de informaci&oacute;n crece cada temporada y monitorizarlo todo manualmente es imposible.
+    </p>
+    <div class="sp16"></div>
+
+    <div class="grid-3">
+        <div class="info-block accent-red">
+            <div class="val">+400</div>
+            <div class="lbl">Menciones diarias por jugador de perfil medio</div>
+        </div>
+        <div class="info-block accent-amber">
+            <div class="val">6h</div>
+            <div class="lbl">Ventana cr&iacute;tica para reaccionar a una crisis</div>
+        </div>
+        <div class="info-block accent-green">
+            <div class="val">33</div>
+            <div class="lbl">Jugadores en vuestra cartera actual</div>
+        </div>
+    </div>
+
+    <div class="sp20"></div>
+
+    <div class="hl">
+        <b>El coste de no monitorizar:</b> Una pol&eacute;mica no detectada a tiempo puede afectar a negociaciones de traspaso, contratos publicitarios y la relaci&oacute;n con el club. El valor de un jugador no est&aacute; solo en el campo.
+    </div>
+
+    <div class="sp24"></div>
+    <span class="tag">Los riesgos</span>
+    <h3>Lo que puede pasar sin vigilancia medi&aacute;tica</h3>
+    <div class="sp8"></div>
+
+    <div class="flow-step">
+        <div class="flow-icon" style="background: #fee2e2;">&#9888;</div>
+        <div>
+            <div style="font-size: 12px; font-weight: 700; color: var(--dark);">Pol&eacute;mica viral no detectada</div>
+            <div class="xs">Un comentario, foto o interacci&oacute;n del jugador se viraliza y no os enter&aacute;is hasta que llama el club</div>
+        </div>
+        <span class="flow-badge" style="background: #fee2e2; color: var(--red);">Cr&iacute;tico</span>
+    </div>
+
+    <div class="flow-step">
+        <div class="flow-icon" style="background: #fef3c7;">&#9432;</div>
+        <div>
+            <div style="font-size: 12px; font-weight: 700; color: var(--dark);">Rumor de fichaje sin seguimiento</div>
+            <div class="xs">La prensa vincula a vuestro jugador con otro club y perd&eacute;is la ventaja negociadora</div>
+        </div>
+        <span class="flow-badge" style="background: #fef3c7; color: var(--amber);">Alto</span>
+    </div>
+
+    <div class="flow-step">
+        <div class="flow-icon" style="background: #fef3c7;">&#9432;</div>
+        <div>
+            <div style="font-size: 12px; font-weight: 700; color: var(--dark);">Sentimiento negativo progresivo</div>
+            <div class="xs">La afici&oacute;n se vuelve contra el jugador semana a semana y no se detecta la tendencia</div>
+        </div>
+        <span class="flow-badge" style="background: #fef3c7; color: var(--amber);">Alto</span>
+    </div>
+
+    <div class="flow-step">
+        <div class="flow-icon" style="background: #d1fae5;">&#8505;</div>
+        <div>
+            <div style="font-size: 12px; font-weight: 700; color: var(--dark);">Valor comercial invisible</div>
+            <div class="xs">No sab&eacute;is qu&eacute; marcas se asocian con vuestro jugador ni su potencial publicitario real</div>
+        </div>
+        <span class="flow-badge" style="background: #d1fae5; color: var(--green);">Medio</span>
+    </div>
+
+    <div class="footer">
+        <span>Confidencial</span>
+        <span>Monitorizaci&oacute;n Online &mdash; Niagara Sur</span>
+    </div>
+</div>
+
+<!-- PAGE 3: LA SOLUCION -->
+<div class="page page-content">
+    <div class="topbar">
+        <span>Monitorizaci&oacute;n Online &mdash; Niagara Sur</span>
+        <span class="pnum">03</span>
+    </div>
+
+    <span class="tag">La soluci&oacute;n</span>
+    <h2>Una herramienta que vigila todo<br>lo que se dice en prensa y redes</h2>
+    <div class="sp8"></div>
+    <p class="lead">
+        Nuestra herramienta rastrea autom&aacute;ticamente prensa y redes sociales, analiza el contenido, y os presenta la informaci&oacute;n organizada y lista para actuar. Sin b&uacute;squedas manuales, sin perder nada.
+    </p>
+
+    <div class="sp16"></div>
+
+    <div class="grid-2">
+        <div class="info-block" style="text-align: center;">
+            <div style="font-size: 28px; margin-bottom: 4px;">&#128240;</div>
+            <h3>Prensa</h3>
+            <div class="sm">Qu&eacute; dicen los medios de comunicaci&oacute;n sobre vuestro jugador. Noticias nacionales e internacionales, prensa deportiva especializada.</div>
+        </div>
+        <div class="info-block" style="text-align: center;">
+            <div style="font-size: 28px; margin-bottom: 4px;">&#128172;</div>
+            <h3>Redes Sociales</h3>
+            <div class="sm">Qu&eacute; dice la gente y qu&eacute; publica el propio jugador. Menciones, conversaciones, engagement y tendencias en tiempo real.</div>
+        </div>
+    </div>
+
+    <div class="sp20"></div>
+    <span class="tag">C&oacute;mo funciona</span>
+    <h3>Tres pasos, sin complicaciones</h3>
+    <div class="sp12"></div>
+
+    <div class="flow-step">
+        <div class="flow-icon" style="background: var(--navy-light); color: var(--navy); font-weight: 900;">1</div>
+        <div>
+            <div style="font-size: 12px; font-weight: 700; color: var(--dark);">Damos de alta al jugador</div>
+            <div class="xs">Nos indic&aacute;is nombre, club y redes sociales. Una vez y listo.</div>
+        </div>
+        <span class="flow-badge" style="background: var(--navy-light); color: var(--navy);">1 minuto</span>
+    </div>
+
+    <div class="flow-step">
+        <div class="flow-icon" style="background: var(--navy-light); color: var(--navy); font-weight: 900;">2</div>
+        <div>
+            <div style="font-size: 12px; font-weight: 700; color: var(--dark);">La herramienta escanea diariamente</div>
+            <div class="xs">Cada d&iacute;a rastrea prensa y redes sociales de forma autom&aacute;tica. Sin intervenci&oacute;n vuestra.</div>
+        </div>
+        <span class="flow-badge" style="background: #d1fae5; color: var(--green);">Autom&aacute;tico</span>
+    </div>
+
+    <div class="flow-step">
+        <div class="flow-icon" style="background: var(--navy-light); color: var(--navy); font-weight: 900;">3</div>
+        <div>
+            <div style="font-size: 12px; font-weight: 700; color: var(--dark);">Consult&aacute;is el panel o export&aacute;is el informe</div>
+            <div class="xs">Todo organizado por jugador: sentimiento, temas, alertas, marcas. Exportable a PDF en un click.</div>
+        </div>
+        <span class="flow-badge" style="background: var(--navy-light); color: var(--navy);">En tiempo real</span>
+    </div>
+
+    <div class="sp16"></div>
+
+    <div class="hlp">
+        <b>Escaneos diarios:</b> Cada ma&ntilde;ana tendr&eacute;is actualizada la informaci&oacute;n de todos vuestros jugadores. Si surge algo urgente, lanzamos un escaneo manual en cualquier momento.
+    </div>
+
+    <div class="footer">
+        <span>Confidencial</span>
+        <span>Monitorizaci&oacute;n Online &mdash; Niagara Sur</span>
+    </div>
+</div>
+
+<!-- PAGE 4: CASO PRACTICO - RODRI SANCHEZ -->
+<div class="page page-img infog" style="background-image: url('images/infographic.png');">
+    <div style="padding: 52px 56px; flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <div style="margin-bottom: 8px;">
+            <span style="font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--navy-mid);">Caso pr&aacute;ctico real</span>
+        </div>
+        <h2 style="color: #fff; font-size: 30px; margin-bottom: 20px;">Un escaneo real con un<br>jugador de Niagara Sur</h2>
+
+        <!-- Player card -->
+        <div class="cta-box player-card" style="margin-bottom: 24px;">
+            <img src="images/rodri_sanchez.jpg" alt="Rodri S&aacute;nchez" class="player-photo">
+            <div>
+                <div style="font-size: 20px; font-weight: 800; color: #fff;">Rodri S&aacute;nchez</div>
+                <div style="font-size: 13px; color: rgba(255,255,255,.6);">Al-Arabi SC &middot; Qatar Stars League</div>
+                <div style="font-size: 11px; color: rgba(255,255,255,.4); margin-top: 4px;">Centrocampista &middot; 25 a&ntilde;os</div>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+            <div class="cta-box" style="text-align: center; padding: 18px 16px;">
+                <div style="font-size: 38px; font-weight: 900; color: #fff;">32</div>
+                <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,.5);">Noticias en prensa</div>
+            </div>
+            <div class="cta-box" style="text-align: center; padding: 18px 16px;">
+                <div style="font-size: 38px; font-weight: 900; color: #fff;">165</div>
+                <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,.5);">Menciones en redes</div>
+            </div>
+            <div class="cta-box" style="text-align: center; padding: 18px 16px;">
+                <div style="font-size: 38px; font-weight: 900; color: #fff;">20</div>
+                <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,.5);">Posts del jugador</div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 24px;">
+            <div class="cta-box" style="padding: 14px 16px; text-align: center;">
+                <div style="font-size: 20px; font-weight: 900; color: #8fb3de;">&lt;3 min</div>
+                <div style="font-size: 9px; color: rgba(255,255,255,.4);">Tiempo de escaneo</div>
+            </div>
+            <div class="cta-box" style="padding: 14px 16px; text-align: center;">
+                <div style="font-size: 20px; font-weight: 900; color: #8fb3de;">13</div>
+                <div style="font-size: 9px; color: rgba(255,255,255,.4);">Temas detectados</div>
+            </div>
+            <div class="cta-box" style="padding: 14px 16px; text-align: center;">
+                <div style="font-size: 20px; font-weight: 900; color: #8fb3de;">100%</div>
+                <div style="font-size: 9px; color: rgba(255,255,255,.4);">Filtrado preciso</div>
+            </div>
+            <div class="cta-box" style="padding: 14px 16px; text-align: center;">
+                <div style="font-size: 20px; font-weight: 900; color: #8fb3de;">PDF</div>
+                <div style="font-size: 9px; color: rgba(255,255,255,.4);">Informe exportable</div>
+            </div>
+        </div>
+
+        <div class="cta-box" style="max-width: 100%;">
+            <div style="font-size: 12px; color: rgba(255,255,255,.7); line-height: 1.7;">
+                <span style="color: #8fb3de; font-weight: 700;">Resultado:</span> En menos de 3 minutos obtuvimos 32 noticias relevantes en prensa, 165 menciones en redes sociales y 20 publicaciones propias del jugador. La herramienta filtr&oacute; autom&aacute;ticamente las noticias que no correspond&iacute;an a este Rodri S&aacute;nchez, descartando informaci&oacute;n de otros jugadores con nombre similar.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PAGE 5: QUE INFORMACION OBTIENES -->
+<div class="page page-content">
+    <div class="topbar">
+        <span>Monitorizaci&oacute;n Online &mdash; Niagara Sur</span>
+        <span class="pnum">05</span>
+    </div>
+
+    <span class="tag">Situaciones reales</span>
+    <h2>C&oacute;mo os ayuda en el<br>d&iacute;a a d&iacute;a de la agencia</h2>
+    <div class="sp8"></div>
+    <p class="lead">
+        Estas son situaciones que viv&iacute;s habitualmente. As&iacute; las resolver&iacute;ais con la herramienta.
+    </p>
+
+    <div class="sp12"></div>
+
+    <div class="flow-step" style="padding: 14px 18px;">
+        <div class="flow-icon" style="background: #fee2e2;">&#128240;</div>
+        <div style="flex: 1;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--dark);">&ldquo;Marca publica que nuestro jugador negocia con otro club&rdquo;</div>
+            <div class="xs" style="margin-top: 2px;">La herramienta os alerta al momento. Veis la noticia, el sentimiento de las reacciones en redes y pod&eacute;is actuar antes de que el club os llame.</div>
+        </div>
+    </div>
+
+    <div class="flow-step" style="padding: 14px 18px;">
+        <div class="flow-icon" style="background: #fef3c7;">&#128172;</div>
+        <div style="flex: 1;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--dark);">&ldquo;El jugador sube una foto pol&eacute;mica a Instagram&rdquo;</div>
+            <div class="xs" style="margin-top: 2px;">Detect&aacute;is el pico de menciones negativas en redes inmediatamente. Pod&eacute;is aconsejar al jugador que borre el post o publique una aclaraci&oacute;n antes de que escale.</div>
+        </div>
+    </div>
+
+    <div class="flow-step" style="padding: 14px 18px;">
+        <div class="flow-icon" style="background: #d1fae5;">&#128176;</div>
+        <div style="flex: 1;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--dark);">&ldquo;Una marca nos pregunta por el perfil medi&aacute;tico del jugador&rdquo;</div>
+            <div class="xs" style="margin-top: 2px;">Export&aacute;is un PDF con sentimiento, engagement, marcas asociadas y evoluci&oacute;n. Datos concretos para cerrar el acuerdo.</div>
+        </div>
+    </div>
+
+    <div class="flow-step" style="padding: 14px 18px;">
+        <div class="flow-icon" style="background: var(--navy-light);">&#128202;</div>
+        <div style="flex: 1;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--dark);">&ldquo;Queremos saber c&oacute;mo ha cambiado la percepci&oacute;n del jugador este mes&rdquo;</div>
+            <div class="xs" style="margin-top: 2px;">Compar&aacute;is los escaneos semanales y veis la tendencia: si el sentimiento sube, baja o se mantiene. Ideal antes de una negociaci&oacute;n.</div>
+        </div>
+    </div>
+
+    <div class="sp16"></div>
+
+    <div class="grid-2">
+        <div class="hlp">
+            <b>Multi-jugador:</b> Consultad cualquiera de los 33 jugadores de vuestra cartera con un click. Cada uno tiene su hist&oacute;rico, alertas y comparativas propias.
+        </div>
+        <div class="hl">
+            <b>Informe PDF:</b> Todo exportable a un documento profesional en un click. Ideal para reuniones con clubes, marcas o el jugador y su familia.
+        </div>
+    </div>
+
+    <div class="footer">
+        <span>Confidencial</span>
+        <span>Monitorizaci&oacute;n Online &mdash; Niagara Sur</span>
+    </div>
+</div>
+
+<!-- PAGE 6: ANTES/DESPUES + BENEFICIOS -->
+<div class="page page-content">
+    <div class="topbar">
+        <span>Monitorizaci&oacute;n Online &mdash; Niagara Sur</span>
+        <span class="pnum">06</span>
+    </div>
+
+    <span class="tag">Antes y despu&eacute;s</span>
+    <h2>De b&uacute;squedas manuales a<br>monitorizaci&oacute;n autom&aacute;tica</h2>
+    <div class="sp12"></div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 30%;"></th>
+                <th style="width: 35%;">Hoy (manual)</th>
+                <th style="width: 35%;">Con la herramienta</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><b>Tiempo por jugador</b></td>
+                <td>2-3 horas buscando</td>
+                <td style="color: var(--green); font-weight: 700;">3 minutos</td>
+            </tr>
+            <tr>
+                <td><b>Cobertura</b></td>
+                <td>Lo que se acuerde mirar</td>
+                <td style="color: var(--green); font-weight: 700;">Prensa y redes, todo</td>
+            </tr>
+            <tr>
+                <td><b>An&aacute;lisis</b></td>
+                <td>Subjetivo, seg&uacute;n qui&eacute;n lo haga</td>
+                <td style="color: var(--green); font-weight: 700;">Objetivo y consistente</td>
+            </tr>
+            <tr>
+                <td><b>Alertas</b></td>
+                <td>No hay, se entera tarde</td>
+                <td style="color: var(--green); font-weight: 700;">Autom&aacute;ticas al instante</td>
+            </tr>
+            <tr>
+                <td><b>Hist&oacute;rico</b></td>
+                <td>No existe</td>
+                <td style="color: var(--green); font-weight: 700;">Gr&aacute;ficos y comparativas</td>
+            </tr>
+            <tr>
+                <td><b>33 jugadores</b></td>
+                <td>Imposible de mantener</td>
+                <td style="color: var(--green); font-weight: 700;">Sin esfuerzo adicional</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="sp24"></div>
+
+    <span class="tag">Beneficios clave</span>
+    <h3>Lo que aporta a vuestra agencia</h3>
+    <div class="sp12"></div>
+
+    <div class="grid-2" style="margin-bottom: 14px;">
+        <div class="info-block accent-green">
+            <h3>Protecci&oacute;n de imagen</h3>
+            <div class="sm">Detectad una pol&eacute;mica o una publicaci&oacute;n problem&aacute;tica antes de que escale. Tiempo de reacci&oacute;n: minutos, no d&iacute;as.</div>
+        </div>
+        <div class="info-block accent-green">
+            <h3>Inteligencia de mercado</h3>
+            <div class="sm">Sabed al instante cuando la prensa vincula a vuestro jugador con otro club. Ventaja en la negociaci&oacute;n.</div>
+        </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom: 14px;">
+        <div class="info-block accent-green">
+            <h3>Valor comercial</h3>
+            <div class="sm">Conoced qu&eacute; marcas se asocian con vuestro jugador y su engagement real. Datos para negociar sponsors.</div>
+        </div>
+        <div class="info-block accent-green">
+            <h3>Evoluci&oacute;n del sentimiento</h3>
+            <div class="sm">Seguid c&oacute;mo cambia la opini&oacute;n p&uacute;blica semana a semana. Detectad tendencias antes de que sean obvias.</div>
+        </div>
+    </div>
+
+    <div class="sp12"></div>
+
+    <div class="hl">
+        <b>Escalabilidad:</b> Hoy ten&eacute;is 33 jugadores en cartera. La herramienta los monitoriza a todos cada d&iacute;a sin esfuerzo adicional. Si ma&ntilde;ana fich&aacute;is a 10 m&aacute;s, se a&ntilde;aden en un minuto y empiezan a monitorizarse autom&aacute;ticamente.
+    </div>
+
+    <div class="footer">
+        <span>Confidencial</span>
+        <span>Monitorizaci&oacute;n Online &mdash; Niagara Sur</span>
+    </div>
+</div>
+
+<!-- PAGE 7: CIERRE -->
+<div class="page page-img closer" style="background-image: url('images/closing.png');">
+    <div style="padding: 0 56px 60px; flex: 1; display: flex; flex-direction: column; justify-content: flex-end;">
+        <div class="cover-bar"></div>
+        <h2 style="color: #fff; font-size: 32px; margin-bottom: 8px;">Pr&oacute;ximos pasos</h2>
+        <p style="font-size: 13px; color: rgba(255,255,255,.6); margin-bottom: 32px; max-width: 500px;">
+            La herramienta est&aacute; lista para empezar a trabajar con vuestra cartera de jugadores.
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 32px;">
+            <div class="cta-box" style="display: flex; align-items: center; gap: 16px;">
+                <div style="width: 32px; height: 32px; background: rgba(255,255,255,.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; color: var(--navy-mid);">1</div>
+                <div>
+                    <div style="font-size: 14px; font-weight: 700; color: #fff;">Demo en vivo</div>
+                    <div style="font-size: 11px; color: rgba(255,255,255,.5);">Os ense&ntilde;aremos la herramienta funcionando con vuestros jugadores reales</div>
+                </div>
+            </div>
+            <div class="cta-box" style="display: flex; align-items: center; gap: 16px;">
+                <div style="width: 32px; height: 32px; background: rgba(255,255,255,.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; color: var(--navy-mid);">2</div>
+                <div>
+                    <div style="font-size: 14px; font-weight: 700; color: #fff;">Personalizaci&oacute;n</div>
+                    <div style="font-size: 11px; color: rgba(255,255,255,.5);">Adaptamos las alertas, informes y categor&iacute;as a vuestras necesidades</div>
+                </div>
+            </div>
+            <div class="cta-box" style="display: flex; align-items: center; gap: 16px;">
+                <div style="width: 32px; height: 32px; background: rgba(255,255,255,.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; color: var(--navy-mid);">3</div>
+                <div>
+                    <div style="font-size: 14px; font-weight: 700; color: #fff;">Puesta en marcha</div>
+                    <div style="font-size: 11px; color: rgba(255,255,255,.5);">Cargamos vuestra cartera completa y empezamos a monitorizar desde el primer d&iacute;a</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="cta-box" style="text-align: center;">
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,.4); margin-bottom: 8px;">Contacto</div>
+            <div style="font-size: 16px; font-weight: 700; color: #fff;">&iquest;Hablamos?</div>
+            <div style="font-size: 12px; color: rgba(255,255,255,.55); margin-top: 4px;">Estamos listos para hacer una demo con vuestros jugadores</div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

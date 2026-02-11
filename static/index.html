@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitorizacion - OSINT Futbol</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: { 900: '#0a0a0a', 800: '#121212', 700: '#161616', 600: '#1a1a1a', 500: '#222222' },
+                        accent: '#1d9bf0',
+                        positive: '#00ba7c',
+                        warning: '#ffd166',
+                        negative: '#f4212e',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-dark-900 text-gray-200 min-h-screen">
+
+    <!-- Header -->
+    <header class="bg-dark-800 border-b border-gray-800 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-accent rounded-lg flex items-center justify-center font-bold text-white text-sm">AR</div>
+                <h1 class="text-xl font-bold text-white">Agent<span class="text-accent">Radar</span></h1>
+                <div id="scheduler-indicator" class="hidden ml-3 flex items-center gap-1.5 text-xs text-gray-500">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    <span id="scheduler-text">Auto</span>
+                </div>
+            </div>
+            <div id="player-header" class="hidden flex items-center gap-4">
+                <div id="header-photo-container" class="hidden">
+                    <img id="header-photo" class="w-10 h-10 rounded-full object-cover border-2 border-accent" src="" alt="">
+                </div>
+                <div id="header-initials" class="hidden w-10 h-10 rounded-full bg-accent flex items-center justify-center text-white font-bold text-sm"></div>
+                <div class="text-right">
+                    <div id="header-name" class="font-semibold text-white cursor-pointer hover:text-accent" onclick="showPlayerSwitcher()"></div>
+                    <div id="header-club" class="text-xs text-gray-500"></div>
+                </div>
+                <div id="header-tm-info" class="hidden text-right ml-2 pl-2 border-l border-gray-800">
+                    <div id="header-market-value" class="text-sm font-bold text-green-400"></div>
+                    <div id="header-contract" class="text-xs text-gray-500"></div>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="btn-portfolio" onclick="showPortfolio()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-3 py-2 rounded-lg text-sm transition hidden border border-gray-700" title="Vista portfolio">
+                    Portfolio
+                </button>
+                <button id="btn-export" onclick="exportPDF()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-3 py-2 rounded-lg text-sm transition hidden border border-gray-700" title="Descargar informe">
+                    PDF
+                </button>
+                <button id="btn-switch" onclick="showPlayerSwitcher()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-3 py-2 rounded-lg text-sm transition hidden border border-gray-700" title="Cambiar jugador">
+                    + Jugador
+                </button>
+                <button id="btn-scan" onclick="startScan()" class="bg-accent hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium text-sm transition hidden">
+                    Escanear
+                </button>
+                <a href="/logout" class="text-gray-600 hover:text-gray-400 text-xs ml-2 transition" title="Cerrar sesion">Salir</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Player Switcher Modal -->
+    <div id="player-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+        <div class="bg-dark-700 rounded-2xl p-6 border border-gray-800 w-full max-w-md mx-4">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-white">Cambiar Jugador</h3>
+                <button onclick="hidePlayerSwitcher()" class="text-gray-500 hover:text-white text-xl">&times;</button>
+            </div>
+            <div id="player-list" class="space-y-2 mb-4 max-h-48 overflow-y-auto"></div>
+            <div class="border-t border-gray-800 pt-4">
+                <p class="text-xs text-gray-500 mb-2">Nuevo jugador:</p>
+                <input id="modal-name" type="text" placeholder="Nombre" class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm mb-2 focus:border-accent focus:outline-none">
+                <div class="grid grid-cols-2 gap-2">
+                    <input id="modal-twitter" type="text" placeholder="Twitter" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-accent focus:outline-none">
+                    <input id="modal-instagram" type="text" placeholder="Instagram" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-accent focus:outline-none">
+                </div>
+                <div class="grid grid-cols-3 gap-2 mt-2">
+                    <input id="modal-club" type="text" placeholder="Club" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-accent focus:outline-none">
+                    <input id="modal-tm" type="text" placeholder="TM ID" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-accent focus:outline-none">
+                    <input id="modal-tiktok" type="text" placeholder="TikTok" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-accent focus:outline-none">
+                </div>
+                <button onclick="addAndScanPlayer()" class="w-full bg-accent hover:bg-blue-600 text-white py-2 rounded-lg font-medium text-sm transition mt-3">
+                    Escanear nuevo jugador
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Setup Panel -->
+    <div id="setup-panel" class="max-w-lg mx-auto mt-20 p-6">
+        <div class="bg-dark-700 rounded-2xl p-8 border border-gray-800">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-accent/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <div class="w-10 h-10 bg-accent rounded-xl flex items-center justify-center font-bold text-white">AR</div>
+                </div>
+                <h2 class="text-2xl font-bold text-white">AgentRadar</h2>
+                <p class="text-gray-500 mt-2">Monitorizacion online de jugadores</p>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Nombre del jugador *</label>
+                    <input id="inp-name" type="text" value="Jose Campana" placeholder="Ej: Jose Campana"
+                        class="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-accent focus:outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Twitter/X</label>
+                        <input id="inp-twitter" type="text" value="JoseGCampana" placeholder="@handle"
+                            class="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-accent focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Instagram</label>
+                        <input id="inp-instagram" type="text" value="josegomezcampana24" placeholder="@handle"
+                            class="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-accent focus:outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Club</label>
+                        <input id="inp-club" type="text" value="AD Ceuta" placeholder="Ej: Sevilla FC"
+                            class="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-accent focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Transfermarkt ID</label>
+                        <input id="inp-tm" type="text" value="120095" placeholder="Opcional"
+                            class="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-accent focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">TikTok</label>
+                        <input id="inp-tiktok" type="text" placeholder="@handle"
+                            class="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-accent focus:outline-none">
+                    </div>
+                </div>
+                <button onclick="launchScan()" class="w-full bg-accent hover:bg-blue-600 text-white py-3 rounded-lg font-semibold text-lg transition mt-4">
+                    Iniciar Escaneo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scan Progress -->
+    <div id="scan-progress" class="hidden max-w-lg mx-auto mt-20 p-6">
+        <div class="bg-dark-700 rounded-2xl p-8 border border-gray-800 text-center">
+            <div class="scan-spinner mx-auto mb-6"></div>
+            <h3 class="text-xl font-bold text-white mb-2">Escaneando...</h3>
+            <p id="scan-message" class="text-gray-400">Iniciando escaneo...</p>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="hidden max-w-7xl mx-auto px-4 py-6">
+
+        <!-- Executive Summary -->
+        <div id="executive-summary" class="bg-dark-700 rounded-xl border border-gray-800 p-5 mb-6 hidden">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="font-semibold text-white text-sm uppercase tracking-wider">Resumen Ejecutivo</h3>
+                <span class="text-xs text-gray-600" id="report-date"></span>
+            </div>
+            <p id="exec-summary-text" class="text-sm text-gray-300 leading-relaxed"></p>
+        </div>
+
+        <!-- Summary Cards -->
+        <div id="summary-cards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+
+        <!-- Topics + Brands Row -->
+        <div id="topics-brands-row" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 hidden">
+            <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+                <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Temas Detectados</h4>
+                <div id="topics-container" class="flex flex-wrap gap-2"></div>
+            </div>
+            <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+                <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Marcas Detectadas</h4>
+                <div id="brands-container" class="flex flex-wrap gap-2"></div>
+            </div>
+        </div>
+
+        <!-- Image Index -->
+        <div id="image-index-card" class="hidden mb-6"></div>
+
+        <!-- Date Range Filter -->
+        <div id="date-range-bar" class="flex items-center gap-3 mb-4 bg-dark-800 rounded-xl p-3 border border-gray-800 flex-wrap">
+            <span class="text-xs text-gray-500 uppercase tracking-wider">Periodo:</span>
+            <button onclick="setDateRange('7d')" data-range="7d" class="date-range-btn active">7 dias</button>
+            <button onclick="setDateRange('30d')" data-range="30d" class="date-range-btn">30 dias</button>
+            <button onclick="setDateRange('90d')" data-range="90d" class="date-range-btn">90 dias</button>
+            <button onclick="setDateRange('all')" data-range="all" class="date-range-btn">Todo</button>
+            <div class="ml-auto flex items-center gap-2">
+                <input type="date" id="date-from" class="bg-dark-900 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white focus:border-accent focus:outline-none" onchange="setDateRange('custom')">
+                <span class="text-gray-600 text-xs">a</span>
+                <input type="date" id="date-to" class="bg-dark-900 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white focus:border-accent focus:outline-none" onchange="setDateRange('custom')">
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex gap-1 mb-6 bg-dark-800 rounded-xl p-1 overflow-x-auto">
+            <button onclick="switchTab('prensa')" data-tab="prensa" class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">Prensa</button>
+            <button onclick="switchTab('redes')" data-tab="redes" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">Redes</button>
+            <button onclick="switchTab('actividad')" data-tab="actividad" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">Su Actividad</button>
+            <button onclick="switchTab('alertas')" data-tab="alertas" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">Alertas <span id="alert-badge" class="hidden ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full"></span></button>
+            <button onclick="switchTab('historial')" data-tab="historial" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">Historial</button>
+            <button onclick="switchTab('historico')" data-tab="historico" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">Graficos</button>
+            <button onclick="switchTab('informe')" data-tab="informe" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">Informe</button>
+        </div>
+
+        <!-- Tab Content -->
+        <div id="tab-prensa" class="tab-content"></div>
+        <div id="tab-redes" class="tab-content hidden"></div>
+        <div id="tab-actividad" class="tab-content hidden"></div>
+        <div id="tab-alertas" class="tab-content hidden"></div>
+        <div id="tab-historial" class="tab-content hidden"></div>
+        <div id="tab-historico" class="tab-content hidden"></div>
+        <div id="tab-informe" class="tab-content hidden"></div>
+    </div>
+
+    <!-- Portfolio View -->
+    <div id="portfolio-view" class="hidden max-w-7xl mx-auto px-4 py-6">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold text-white">Portfolio de Jugadores</h2>
+            <div class="flex items-center gap-2">
+                <button id="btn-compare-players" onclick="showPlayerCompareModal()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-3 py-2 rounded-lg text-sm border border-gray-700">Comparar</button>
+                <button onclick="hidePortfolio()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-3 py-2 rounded-lg text-sm border border-gray-700">Volver</button>
+            </div>
+        </div>
+        <div id="portfolio-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- Player Compare Modal -->
+    <div id="player-compare-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+        <div class="bg-dark-700 rounded-2xl p-6 border border-gray-800 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-white">Comparativa de Jugadores</h3>
+                <button onclick="hidePlayerCompareModal()" class="text-gray-500 hover:text-white text-xl">&times;</button>
+            </div>
+            <div id="player-compare-content"></div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

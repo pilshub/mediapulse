@@ -1,0 +1,221 @@
+/* AgentRadar - Custom Styles */
+
+* { box-sizing: border-box; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #0a0a0a; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #555; }
+
+/* Tab buttons */
+.tab-btn {
+    color: #71767b;
+    transition: all 0.2s;
+}
+.tab-btn:hover {
+    color: #e7e9ea;
+    background: rgba(255, 255, 255, 0.05);
+}
+.tab-btn.active {
+    color: #fff;
+    background: #1d9bf0;
+}
+
+/* Scan spinner */
+.scan-spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid #222;
+    border-top-color: #1d9bf0;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Sentiment badges */
+.badge-positivo {
+    background: rgba(0, 186, 124, 0.15);
+    color: #00ba7c;
+    border: 1px solid rgba(0, 186, 124, 0.3);
+}
+.badge-neutro {
+    background: rgba(255, 209, 102, 0.15);
+    color: #ffd166;
+    border: 1px solid rgba(255, 209, 102, 0.3);
+}
+.badge-negativo {
+    background: rgba(244, 33, 46, 0.15);
+    color: #f4212e;
+    border: 1px solid rgba(244, 33, 46, 0.3);
+}
+
+/* Alert severity */
+.alert-alta { border-left: 3px solid #f4212e; }
+.alert-media { border-left: 3px solid #ffd166; }
+.alert-baja { border-left: 3px solid #1d9bf0; }
+
+/* Alert read/unread */
+.alert-unread { background: #161616; }
+.alert-read { background: #0f0f0f; opacity: 0.7; }
+
+/* Card hover */
+.card-hover {
+    transition: all 0.2s;
+}
+.card-hover:hover {
+    background: #1a1a1a;
+    border-color: #333;
+}
+
+/* Gauge */
+.gauge-container {
+    position: relative;
+    width: 80px;
+    height: 40px;
+    overflow: hidden;
+}
+.gauge-bg {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 6px solid #222;
+    border-bottom-color: transparent;
+    border-left-color: transparent;
+    transform: rotate(-90deg);
+    position: absolute;
+    top: 0;
+}
+.gauge-fill {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 6px solid transparent;
+    border-top-color: var(--gauge-color);
+    border-right-color: var(--gauge-color);
+    transform: rotate(var(--gauge-angle));
+    position: absolute;
+    top: 0;
+    transition: transform 0.5s ease;
+}
+
+/* Topic & brand badges */
+.topic-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    margin: 3px;
+    font-weight: 500;
+}
+
+/* Platform icons */
+.platform-twitter { color: #1d9bf0; }
+.platform-reddit { color: #ff4500; }
+.platform-instagram { color: #e1306c; }
+.platform-youtube { color: #ff0000; }
+.platform-google { color: #4285f4; }
+.platform-tiktok { color: #00f2ea; }
+.platform-telegram { color: #26a5e4; }
+
+/* Item list */
+.item-list > div:not(:last-child) {
+    border-bottom: 1px solid #1a1a1a;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.fade-in {
+    animation: fadeIn 0.3s ease forwards;
+}
+
+/* Scan history table */
+.scan-history-row {
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.scan-history-row:hover {
+    background: #1a1a1a;
+}
+
+/* Portfolio cards */
+.portfolio-card {
+    transition: all 0.2s;
+}
+.portfolio-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Recommendation badges */
+.rec-badge {
+    display: inline-block;
+    padding: 4px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+/* SVG ring animation */
+svg circle {
+    transition: stroke-dasharray 0.8s ease;
+}
+
+/* Alert filter buttons */
+.filter-btn {
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    border: 1px solid #333;
+    color: #71767b;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.filter-btn:hover {
+    border-color: #555;
+    color: #e7e9ea;
+}
+.filter-btn.active {
+    border-color: #1d9bf0;
+    color: #1d9bf0;
+    background: rgba(29, 155, 240, 0.1);
+}
+
+/* Date range buttons */
+.date-range-btn {
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    border: 1px solid #333;
+    color: #71767b;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.date-range-btn:hover {
+    border-color: #555;
+    color: #e7e9ea;
+}
+.date-range-btn.active {
+    border-color: #00ba7c;
+    color: #00ba7c;
+    background: rgba(0, 186, 124, 0.1);
+}
+
+/* Word cloud */
+.word-cloud-item {
+    transition: opacity 0.2s, transform 0.2s;
+    cursor: default;
+    line-height: 1.6;
+}
+.word-cloud-item:hover {
+    opacity: 1 !important;
+    transform: scale(1.1);
+}
