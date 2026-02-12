@@ -64,6 +64,12 @@ async def daily_scan_job():
         last_daily_run["finished_at"] = datetime.now().isoformat()
         log.info(f"[scheduler] Daily scan completed: {len(results)} players")
 
+        # Send Telegram daily summary
+        try:
+            await send_telegram_daily_summary(players, results)
+        except Exception as e:
+            log.error(f"[scheduler] Telegram summary error: {e}")
+
         # Send email digest if configured
         try:
             from notifications import send_digest_email
@@ -118,6 +124,82 @@ async def weekly_report_job():
 
     except Exception as e:
         log.error(f"[scheduler] Weekly report job error: {e}", exc_info=True)
+
+
+async def send_telegram_daily_summary(players, results):
+    """Send a formatted daily summary to Telegram after all players are scanned."""
+    from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+
+    today = datetime.now().strftime("%d %b %Y")
+    lines = [f"📊 *MediaPulse — {today}*\n"]
+
+    news_lines = []
+
+    for player, result in zip(players, results):
+        pid = player["id"]
+        name = player["name"]
+
+        # Get intelligence report for risk score
+        intel = await db.get_last_intelligence_report(pid)
+        risk = int(intel.get("risk_score", 0)) if intel else 0
+
+        # Semaphore emoji
+        if risk >= 70:
+            emoji = "🔴"
+        elif risk >= 40:
+            emoji = "🟡"
+        else:
+            emoji = "🟢"
+
+        # Counts from scan result
+        press_count = result.get("press_count", 0) if result else 0
+        mentions_count = result.get("mentions_count", 0) if result else 0
+        new_items = result.get("new_items", 0) if result else 0
+        alerts_count = result.get("alerts_count", 0) if result else 0
+
+        line = f"{emoji} *{name}* — Riesgo {risk}/100"
+        if new_items > 0:
+            line += f" — {new_items} nuevos"
+        if alerts_count > 0:
+            line += f" ⚠️{alerts_count}"
+        lines.append(line)
+
+        # Collect new narrativas for highlights
+        if intel and intel.get("narrativas"):
+            for narr in intel["narrativas"]:
+                sev = narr.get("severidad", "bajo")
+                if sev in ("critico", "alto"):
+                    trend = narr.get("tendencia", "")
+                    trend_icon = "📈" if trend == "escalando" else "➡️" if trend == "estable" else "📉"
+                    news_lines.append(
+                        f"  • {name}: {narr.get('titulo', '')} ({sev}) {trend_icon}"
+                    )
+
+    if news_lines:
+        lines.append(f"\n⚡ *Narrativas activas:*")
+        lines.extend(news_lines[:8])
+
+    # Stats
+    total_new = sum((r or {}).get("new_items", 0) for r in results)
+    total_alerts = sum((r or {}).get("alerts_count", 0) for r in results)
+    lines.append(f"\n📰 {total_new} items nuevos | ⚠️ {total_alerts} alertas")
+
+    msg = "\n".join(lines)
+
+    try:
+        import aiohttp
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        async with aiohttp.ClientSession() as session:
+            await session.post(url, json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": msg,
+                "parse_mode": "Markdown",
+            })
+        log.info("[scheduler] Telegram daily summary sent")
+    except Exception as e:
+        log.error(f"[scheduler] Telegram send error: {e}")
 
 
 def start_scheduler():

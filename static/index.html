@@ -218,8 +218,8 @@
             </div>
         </div>
 
-        <!-- Tabs -->
-        <div class="flex gap-1 mb-4 sm:mb-6 bg-dark-800 rounded-xl p-1 overflow-x-auto scrollbar-hide -mx-3 sm:mx-0 px-3 sm:px-1">
+        <!-- Tabs (desktop) -->
+        <div class="desktop-tab-bar flex gap-1 mb-4 sm:mb-6 bg-dark-800 rounded-xl p-1 overflow-x-auto scrollbar-hide -mx-3 sm:mx-0 px-3 sm:px-1">
             <button onclick="switchTab('prensa')" data-tab="prensa" class="tab-btn active px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Prensa</button>
             <button onclick="switchTab('redes')" data-tab="redes" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Menciones</button>
             <button onclick="switchTab('actividad')" data-tab="actividad" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Sus Redes</button>
@@ -263,6 +263,25 @@
             <div id="player-compare-content"></div>
         </div>
     </div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-bottom-nav" id="mobile-nav">
+        <button onclick="switchTab('prensa')" data-tab="prensa" class="active">
+            <span class="nav-icon">📰</span>Prensa
+        </button>
+        <button onclick="switchTab('redes')" data-tab="redes">
+            <span class="nav-icon">💬</span>Menciones
+        </button>
+        <button onclick="switchTab('actividad')" data-tab="actividad">
+            <span class="nav-icon">📱</span>Sus Redes
+        </button>
+        <button onclick="switchTab('inteligencia')" data-tab="inteligencia">
+            <span class="nav-icon">🧠</span>Intel
+        </button>
+        <button onclick="switchTab('alertas')" data-tab="alertas">
+            <span class="nav-icon">⚠️</span>Alertas
+        </button>
+    </nav>
 
     <script src="/static/app.js"></script>
 </body>

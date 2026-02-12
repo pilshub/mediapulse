@@ -276,16 +276,55 @@ svg circle {
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* Mobile bottom nav */
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #121212;
+    border-top: 1px solid #222;
+    z-index: 50;
+    padding: 4px 0;
+    padding-bottom: max(4px, env(safe-area-inset-bottom, 4px));
+}
+.mobile-bottom-nav button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 2px;
+    color: #71767b;
+    font-size: 9px;
+    font-weight: 500;
+    border: none;
+    background: none;
+    transition: color 0.2s;
+    min-height: 48px;
+}
+.mobile-bottom-nav button.active {
+    color: #1d9bf0;
+}
+.mobile-bottom-nav button .nav-icon {
+    font-size: 18px;
+    line-height: 1;
+}
+
 /* Mobile: < 640px */
 @media (max-width: 639px) {
     /* Reduce base font on mobile slightly */
-    body { font-size: 14px; }
+    body { font-size: 14px; padding-bottom: 64px; }
+
+    /* Show mobile bottom nav */
+    .mobile-bottom-nav { display: flex; }
+
+    /* Hide the desktop tab bar on mobile */
+    .desktop-tab-bar { display: none; }
 
     /* Compact summary cards */
     #summary-cards .text-2xl { font-size: 1.25rem; }
-
-    /* Tabs touch-friendly */
-    .tab-btn { min-height: 40px; }
 
     /* Date range buttons */
     .date-range-btn { padding: 6px 14px; min-height: 36px; }
@@ -312,6 +351,22 @@ svg circle {
 
     /* Word cloud smaller on mobile */
     .word-cloud-item { font-size: 85% !important; }
+
+    /* Executive summary more compact */
+    #executive-summary { padding: 12px !important; }
+
+    /* Modals full-width on mobile */
+    #player-modal > div,
+    #player-compare-modal > div {
+        border-radius: 16px 16px 0 0;
+        max-height: 90vh;
+    }
+}
+
+/* Desktop: show desktop tab bar, hide bottom nav */
+@media (min-width: 640px) {
+    .mobile-bottom-nav { display: none !important; }
+    .desktop-tab-bar { display: flex !important; }
 }
 
 /* Tablet: 640-1023px */

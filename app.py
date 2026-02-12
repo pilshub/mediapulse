@@ -336,6 +336,28 @@ async def scheduler_status():
     return get_scheduler_status()
 
 
+@app.post("/api/telegram/test-summary")
+async def test_telegram_summary():
+    """Send a test Telegram daily summary with current data."""
+    from scheduler import send_telegram_daily_summary
+    players = await db.get_all_players()
+    # Build mock results from current data
+    results = []
+    for p in players:
+        summary = await db.get_summary(p["id"])
+        last_scan = await db.get_last_scan(p["id"])
+        results.append({
+            "player_id": p["id"],
+            "press_count": summary.get("press_count", 0),
+            "mentions_count": summary.get("mentions_count", 0),
+            "posts_count": summary.get("posts_count", 0),
+            "alerts_count": 0,
+            "new_items": last_scan.get("press_count", 0) + last_scan.get("mentions_count", 0) if last_scan else 0,
+        })
+    await send_telegram_daily_summary(players, results)
+    return {"message": "Telegram summary sent"}
+
+
 @app.get("/api/costs")
 async def get_costs():
     """Get estimated API cost breakdown."""

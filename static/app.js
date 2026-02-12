@@ -1169,8 +1169,8 @@ function renderInteligencia(intel) {
         const sw = 140, sh = 36;
         const pts = vals.map((v, i) => `${(i / (vals.length - 1)) * sw},${sh - ((v - mn) / rng) * sh}`).join(' ');
         riskSparkHtml = `
-            <div class="flex-shrink-0" title="Tendencia de riesgo">
-                <svg width="${sw}" height="${sh + 4}" class="overflow-visible">
+            <div class="flex-shrink-0 w-full sm:w-auto" title="Tendencia de riesgo">
+                <svg viewBox="0 0 ${sw + 6} ${sh + 6}" class="w-full sm:w-[140px] max-w-[200px] overflow-visible" preserveAspectRatio="xMidYMid meet">
                     <polyline points="${pts}" fill="none" stroke="${riskColor}" stroke-width="2" stroke-linejoin="round"/>
                     <circle cx="${sw}" cy="${sh - ((vals[vals.length-1] - mn) / rng) * sh}" r="3" fill="${riskColor}"/>
                 </svg>
@@ -1280,10 +1280,10 @@ function renderInteligencia(intel) {
                         const vals = intel.trends.timeline.map(t => t.value);
                         const mn = Math.min(...vals), mx = Math.max(...vals);
                         const rng = (mx - mn) || 1;
-                        const sw = 260, sh = 50;
+                        const sw = 200, sh = 50;
                         const pts = vals.map((v, i) => (i / (vals.length - 1)) * sw + ',' + (sh - ((v - mn) / rng) * sh)).join(' ');
                         const trendCol = intel.trends.trend_direction === 'up' ? '#f4212e' : intel.trends.trend_direction === 'down' ? '#00ba7c' : '#ffd166';
-                        return '<div class="flex justify-center"><svg width="' + sw + '" height="' + (sh+4) + '" class="overflow-visible"><polyline points="' + pts + '" fill="none" stroke="' + trendCol + '" stroke-width="2" stroke-linejoin="round"/><circle cx="' + sw + '" cy="' + (sh - ((vals[vals.length-1] - mn) / rng) * sh) + '" r="3" fill="' + trendCol + '"/></svg></div>';
+                        return '<div class="flex justify-center"><svg viewBox="0 0 ' + (sw+6) + ' ' + (sh+6) + '" class="w-full max-w-[280px] overflow-visible" preserveAspectRatio="xMidYMid meet"><polyline points="' + pts + '" fill="none" stroke="' + trendCol + '" stroke-width="2" stroke-linejoin="round"/><circle cx="' + sw + '" cy="' + (sh - ((vals[vals.length-1] - mn) / rng) * sh) + '" r="3" fill="' + trendCol + '"/></svg></div>';
                     })() : ''}
                     <div class="text-[10px] text-gray-600 text-center mt-1">${intel.trends.data_points || 0} puntos de datos</div>
                 </div>` : ''}
@@ -1444,6 +1444,8 @@ async function generateWeeklyReport() {
 async function showPortfolio() {
     document.getElementById('dashboard').classList.add('hidden');
     document.getElementById('portfolio-view').classList.remove('hidden');
+    const mobileNav = document.getElementById('mobile-nav');
+    if (mobileNav) mobileNav.style.display = 'none';
 
     const grid = document.getElementById('portfolio-grid');
     grid.innerHTML = '<div class="col-span-3 text-center text-gray-500 py-8">Cargando portfolio...</div>';
@@ -1561,6 +1563,8 @@ async function showPortfolio() {
 function hidePortfolio() {
     document.getElementById('portfolio-view').classList.add('hidden');
     document.getElementById('dashboard').classList.remove('hidden');
+    const mobileNav = document.getElementById('mobile-nav');
+    if (mobileNav) mobileNav.style.display = '';
 }
 
 function sentimentColor2(val) {
@@ -1869,8 +1873,17 @@ function filterList(query, type) {
 
 // -- Tab switching --
 function switchTab(tab) {
+    // Desktop tabs
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+    const desktopTab = document.querySelector(`.desktop-tab-bar [data-tab="${tab}"]`);
+    if (desktopTab) desktopTab.classList.add('active');
+
+    // Mobile bottom nav
+    document.querySelectorAll('#mobile-nav button').forEach(b => b.classList.remove('active'));
+    const mobileTab = document.querySelector(`#mobile-nav [data-tab="${tab}"]`);
+    if (mobileTab) mobileTab.classList.add('active');
+
+    // Tab content
     document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
     document.getElementById(`tab-${tab}`).classList.remove('hidden');
 }
