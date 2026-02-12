@@ -1,6 +1,10 @@
 import json
+import logging
+from datetime import datetime, timedelta
 from openai import AsyncOpenAI
-from config import OPENAI_API_KEY
+from config import OPENAI_API_KEY, INTELLIGENCE_MAX_INPUT_ITEMS, INTELLIGENCE_LOOKBACK_DAYS, INTELLIGENCE_MAX_TOKENS
+
+log = logging.getLogger("agentradar")
 
 client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
@@ -254,3 +258,120 @@ def extract_topics_and_brands(all_items):
     topics = dict(sorted(topics.items(), key=lambda x: -x[1]))
     brands = dict(sorted(brands.items(), key=lambda x: -x[1]))
     return topics, brands
+
+
+# ── Intelligence / Early Detection ──
+
+INTELLIGENCE_SYSTEM_PROMPT = """Eres un analista de inteligencia deportiva para una agencia de representacion de futbolistas.
+Analiza el digest de contenido mediatico sobre {player_name} ({club}) y agrupa los items en NARRATIVAS coherentes.
+
+CATEGORIAS DE RIESGO (usa exactamente estos valores):
+- reputacion_personal: Vida privada, escandalos, relaciones, reality TV
+- legal: Problemas legales, investigaciones, sanciones
+- rendimiento: Bajada rendimiento, criticas deportivas
+- fichaje: Rumores de traspaso, interes de clubes
+- lesion: Lesiones, recuperacion, estado fisico
+- disciplina: Tarjetas, expulsiones, conflictos en equipo
+- comercial: Patrocinios, valor de marca
+- imagen_publica: Relacion con aficion, percepcion publica
+
+SEVERIDAD (usa exactamente estos valores):
+- critico: Accion inmediata necesaria (escandalo viral, problema legal confirmado)
+- alto: Atencion esta semana (tendencia negativa creciente, rumor con fuentes fiables)
+- medio: Monitorizar de cerca (mencion aislada que podria crecer)
+- bajo: Informativo (neutral, sin riesgo real)
+
+TENDENCIA: escalando, estable, declinando
+
+REGLAS:
+1. Agrupa items que tratan del MISMO tema/historia en una narrativa
+2. Un item puede pertenecer a una sola narrativa
+3. Items sueltos sin relacion entre si que no forman narrativa = omitir o narrativa individual solo si es relevante
+4. Detecta SENALES TEMPRANAS: patrones que aun no son alertas pero podrian serlo
+5. Se conservador con severidad critico/alto - reservalo para evidencia clara
+6. Las recomendaciones deben ser ACCIONABLES y especificas para una agencia de representacion
+{previous_context}
+Responde UNICAMENTE con JSON valido, sin texto extra:
+{{"narrativas":[{{"titulo":"string corto","descripcion":"2-3 frases resumen","categoria":"reputacion_personal","severidad":"medio","tendencia":"estable","items":["P12","S45"],"fuentes":["prensa","twitter"],"recomendacion":"Accion concreta"}}],"senales_tempranas":[{{"descripcion":"string","categoria":"rendimiento","evidencia":["S78"],"probabilidad":"media","accion_sugerida":"string"}}],"riesgo_global":35,"resumen_inteligencia":"2-3 frases situacion general","recomendacion_principal":"Una frase accionable"}}"""
+
+
+async def generate_intelligence_report(player_id, player_name, club, scan_log_id):
+    """Second-pass GPT-4o analysis: group items into narrativas, assess risk, detect signals."""
+    if not client:
+        return None
+
+    import db
+
+    lookback = (datetime.now() - timedelta(days=INTELLIGENCE_LOOKBACK_DAYS)).strftime("%Y-%m-%dT00:00:00")
+    half = INTELLIGENCE_MAX_INPUT_ITEMS // 2
+
+    press = await db.get_press(player_id, limit=half, date_from=lookback)
+    social = await db.get_social(player_id, limit=half, date_from=lookback)
+    posts = await db.get_player_posts_db(player_id, limit=50, date_from=lookback)
+
+    total_items = len(press) + len(social) + len(posts)
+    if total_items < 5:
+        log.info(f"[intelligence] Skipping {player_name}: only {total_items} items")
+        return None
+
+    # Build token-efficient digest: 1 line per item
+    digest_lines = []
+    for item in press:
+        digest_lines.append(
+            f"P{item['id']}|prensa|{item.get('source', '')}|{item.get('sentiment_label', 'neutro')}|{(item.get('title', '') or '')[:80]}"
+        )
+    for item in social:
+        text = (item.get("text", "") or "").replace("\n", " ")[:80]
+        digest_lines.append(
+            f"S{item['id']}|{item.get('platform', '')}|{(item.get('author', '') or '')[:20]}|{item.get('sentiment_label', 'neutro')}|{text}"
+        )
+    for item in posts:
+        text = (item.get("text", "") or "").replace("\n", " ")[:80]
+        digest_lines.append(
+            f"A{item['id']}|{item.get('platform', '')}|{item.get('sentiment_label', 'neutro')}|{text}"
+        )
+
+    digest = "\n".join(digest_lines[:INTELLIGENCE_MAX_INPUT_ITEMS])
+
+    # Get previous intelligence report for trend context
+    prev_intel = await db.get_last_intelligence_report(player_id)
+    previous_context = ""
+    if prev_intel and prev_intel.get("narrativas"):
+        prev_narr = prev_intel["narrativas"][:5]
+        summaries = [f"- {n['titulo']} ({n.get('categoria', '?')}, {n.get('severidad', '?')}, {n.get('tendencia', '?')})" for n in prev_narr]
+        previous_context = f"\nCONTEXTO PREVIO (escaneo anterior, usa para detectar tendencias):\n" + "\n".join(summaries) + f"\nRiesgo global anterior: {prev_intel.get('risk_score', 'N/A')}/100\n"
+
+    system = INTELLIGENCE_SYSTEM_PROMPT.format(
+        player_name=player_name, club=club or "desconocido",
+        previous_context=previous_context,
+    )
+
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": digest},
+            ],
+            temperature=0.1,
+            max_tokens=INTELLIGENCE_MAX_TOKENS,
+        )
+
+        content = response.choices[0].message.content.strip()
+        if content.startswith("```"):
+            content = content.split("\n", 1)[1]
+            content = content.rsplit("```", 1)[0]
+
+        data = json.loads(content)
+        data["tokens_used"] = response.usage.total_tokens if response.usage else 0
+        log.info(f"[intelligence] {player_name}: risk={data.get('riesgo_global', '?')}/100, "
+                 f"{len(data.get('narrativas', []))} narrativas, {data['tokens_used']} tokens")
+        return data
+
+    except json.JSONDecodeError as e:
+        log.error(f"[intelligence] JSON parse error for {player_name}: {e}")
+        log.error(f"[intelligence] Raw response: {content[:500]}")
+        return None
+    except Exception as e:
+        log.error(f"[intelligence] Error for {player_name}: {e}", exc_info=True)
+        return None

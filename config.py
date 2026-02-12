@@ -87,6 +87,17 @@ WEEKLY_REPORT_DAY = 6  # Sunday
 WEEKLY_REPORT_HOUR = 20
 WEEKLY_REPORT_MINUTE = 0
 
+# Intelligence / Early Detection
+INTELLIGENCE_ENABLED = os.getenv("INTELLIGENCE_ENABLED", "true").lower() == "true"
+INTELLIGENCE_MAX_INPUT_ITEMS = int(os.getenv("INTELLIGENCE_MAX_INPUT_ITEMS", "200"))
+INTELLIGENCE_LOOKBACK_DAYS = int(os.getenv("INTELLIGENCE_LOOKBACK_DAYS", "7"))
+INTELLIGENCE_MAX_TOKENS = int(os.getenv("INTELLIGENCE_MAX_TOKENS", "3000"))
+RISK_CATEGORIES = [
+    "reputacion_personal", "legal", "rendimiento", "fichaje",
+    "lesion", "disciplina", "comercial", "imagen_publica",
+]
+SEVERITY_LEVELS = ["critico", "alto", "medio", "bajo"]
+
 # Server
 HOST = "0.0.0.0"
 PORT = 8000

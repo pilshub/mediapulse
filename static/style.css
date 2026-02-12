@@ -320,6 +320,48 @@ svg circle {
     canvas { max-height: 220px; }
 }
 
+/* Intelligence severity cards */
+.severity-critico { border-left: 4px solid #f4212e; background: rgba(244, 33, 46, 0.06); }
+.severity-alto { border-left: 4px solid #f97316; background: rgba(249, 115, 22, 0.06); }
+.severity-medio { border-left: 4px solid #ffd166; background: rgba(255, 209, 102, 0.06); }
+.severity-bajo { border-left: 4px solid #00ba7c; background: rgba(0, 186, 124, 0.06); }
+
+.trend-escalando { color: #f4212e; }
+.trend-estable { color: #ffd166; }
+.trend-declinando { color: #00ba7c; }
+
+.cat-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.cat-reputacion_personal { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+.cat-legal { background: rgba(244, 33, 46, 0.15); color: #f4212e; }
+.cat-rendimiento { background: rgba(29, 155, 240, 0.15); color: #1d9bf0; }
+.cat-fichaje { background: rgba(6, 182, 212, 0.15); color: #06b6d4; }
+.cat-lesion { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+.cat-disciplina { background: rgba(249, 115, 22, 0.15); color: #f97316; }
+.cat-comercial { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.cat-imagen_publica { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+
+.severity-label {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.sev-critico { background: #f4212e; color: white; }
+.sev-alto { background: #f97316; color: white; }
+.sev-medio { background: #ffd166; color: #1a1a1a; }
+.sev-bajo { background: #00ba7c; color: white; }
+
 /* Safe area for notched phones */
 @supports (padding: env(safe-area-inset-bottom)) {
     body { padding-bottom: env(safe-area-inset-bottom); }

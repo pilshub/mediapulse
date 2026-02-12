@@ -445,6 +445,57 @@ async def get_portfolio_sparklines():
     return await db.get_portfolio_sparklines()
 
 
+@app.get("/api/portfolio/intelligence")
+async def get_portfolio_intelligence():
+    return await db.get_portfolio_intelligence()
+
+
+# -- Intelligence / Narrativas --
+
+
+@app.get("/api/player/{player_id}/intelligence")
+async def get_intelligence(player_id: int):
+    report = await db.get_last_intelligence_report(player_id)
+    if not report:
+        return None
+    narrativas = await db.get_narrativas_active(player_id)
+    history = await db.get_intelligence_history(player_id, 10)
+    # Extract resumen and recomendacion from raw_response
+    raw = {}
+    try:
+        raw = json.loads(report.get("raw_response_json") or "{}")
+    except Exception:
+        pass
+    recs = report.get("recommendations", [])
+    recomendacion = recs[0] if isinstance(recs, list) and recs else ""
+    return {
+        "risk_score": report.get("risk_score"),
+        "resumen": raw.get("resumen_inteligencia", ""),
+        "recomendacion": recomendacion,
+        "narrativas": narrativas,
+        "signals": report.get("signals", []),
+        "risk_history": list(reversed(history)),
+        "created_at": report.get("created_at"),
+        "tokens_used": report.get("tokens_used"),
+    }
+
+
+@app.get("/api/player/{player_id}/intelligence/history")
+async def get_intelligence_history(player_id: int, limit: int = 10):
+    return await db.get_intelligence_history(player_id, limit)
+
+
+@app.get("/api/player/{player_id}/narrativas")
+async def get_narrativas(player_id: int, categoria: Optional[str] = None,
+                         severidad: Optional[str] = None, limit: int = 20):
+    narrativas = await db.get_narrativas_active(player_id, limit)
+    if categoria:
+        narrativas = [n for n in narrativas if n["categoria"] == categoria]
+    if severidad:
+        narrativas = [n for n in narrativas if n["severidad"] == severidad]
+    return narrativas
+
+
 # -- Cross-player comparison --
 
 

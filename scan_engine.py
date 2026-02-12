@@ -5,11 +5,11 @@ import logging
 from datetime import datetime, timedelta
 
 import db
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, FIRST_SCAN_MULTIPLIER
+from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, FIRST_SCAN_MULTIPLIER, INTELLIGENCE_ENABLED
 from scrapers.press import scrape_all_press
 from scrapers.social import scrape_all_social
 from scrapers.player import scrape_all_player_posts
-from analyzer import analyze_batch, generate_executive_summary, extract_topics_and_brands
+from analyzer import analyze_batch, generate_executive_summary, extract_topics_and_brands, generate_intelligence_report
 
 log = logging.getLogger("agentradar")
 
@@ -178,6 +178,19 @@ async def run_scan(player_data: dict, update_status=True):
         image_index_data = await db.calculate_image_index(player_id)
         await db.update_scan_report_image_index(scan_log_id, image_index_data["index"])
         log.info(f"Image Index for {name}: {image_index_data['index']}/100")
+
+        # Intelligence Analysis (second-pass)
+        if INTELLIGENCE_ENABLED:
+            if update_status:
+                scan_status["progress"] = "Analizando inteligencia..."
+            try:
+                intel_result = await generate_intelligence_report(
+                    player_id, name, club or "", scan_log_id
+                )
+                if intel_result:
+                    await db.save_intelligence_report(player_id, scan_log_id, intel_result)
+            except Exception as e:
+                log.error(f"Intelligence analysis error: {e}", exc_info=True)
 
         # Send Telegram alert if configured
         if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:

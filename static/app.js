@@ -228,7 +228,7 @@ async function loadDashboard(playerId) {
 
     // Load all data in parallel
     const [summary, report, press, social, activity, alerts, stats, scans, imageIndex, weeklyReports,
-           sentByPlatform, activityPeaks, topInfluencers, idxHistory] = await Promise.all([
+           sentByPlatform, activityPeaks, topInfluencers, idxHistory, intelligence] = await Promise.all([
         fetch(`/api/summary?player_id=${playerId}${dp}`).then(r => r.json()),
         fetch(`/api/report?player_id=${playerId}`).then(r => r.json()).catch(() => null),
         fetch(`/api/press?player_id=${playerId}${dp}`).then(r => r.json()),
@@ -243,6 +243,7 @@ async function loadDashboard(playerId) {
         fetch(`/api/player/${playerId}/activity-peaks`).then(r => r.json()).catch(() => null),
         fetch(`/api/player/${playerId}/top-influencers`).then(r => r.json()).catch(() => []),
         fetch(`/api/player/${playerId}/image-index-history`).then(r => r.json()).catch(() => []),
+        fetch(`/api/player/${playerId}/intelligence`).then(r => r.json()).catch(() => null),
     ]);
 
     // Store data for search/filter
@@ -258,6 +259,18 @@ async function loadDashboard(playerId) {
     } else {
         badge.classList.add('hidden');
         document.title = 'MediaPulse';
+    }
+
+    // Risk badge on intelligence tab
+    const riskBadge = document.getElementById('risk-badge');
+    if (intelligence && intelligence.risk_score !== undefined) {
+        const rs = Math.round(intelligence.risk_score);
+        riskBadge.textContent = rs;
+        riskBadge.classList.remove('hidden');
+        const rbColor = rs >= 70 ? 'bg-red-500 text-white' : rs >= 40 ? 'bg-yellow-500 text-black' : 'bg-green-600 text-white';
+        riskBadge.className = `ml-1 text-xs px-1.5 py-0.5 rounded-full ${rbColor}`;
+    } else {
+        riskBadge.classList.add('hidden');
     }
 
     // Render Image Index
@@ -279,6 +292,7 @@ async function loadDashboard(playerId) {
     renderAlerts(alerts);
     renderHistorial(scans);
     renderHistorico(stats);
+    renderInteligencia(intelligence);
     renderInforme(weeklyReports, imageIndex);
 
     switchTab('prensa');
@@ -1100,6 +1114,168 @@ function renderImageIndex(idx, history) {
 }
 
 // -- Informe Tab (Weekly Reports) --
+function renderInteligencia(intel) {
+    const container = document.getElementById('tab-inteligencia');
+    if (!intel || !intel.narrativas) {
+        container.innerHTML = `
+            <div class="bg-dark-700 rounded-xl border border-gray-800 p-6 text-center">
+                <p class="text-gray-500 text-sm">No hay datos de inteligencia disponibles.</p>
+                <p class="text-gray-600 text-xs mt-2">Lanza un escaneo para generar el analisis de inteligencia.</p>
+            </div>`;
+        return;
+    }
+
+    const rs = Math.round(intel.risk_score || 0);
+    const riskColor = rs >= 70 ? '#f4212e' : rs >= 40 ? '#ffd166' : '#00ba7c';
+    const riskLabel = rs >= 70 ? 'ALTO RIESGO' : rs >= 40 ? 'RIESGO MEDIO' : 'BAJO RIESGO';
+
+    const sevOrder = { critico: 0, alto: 1, medio: 2, bajo: 3 };
+    const sevColors = { critico: '#f4212e', alto: '#f97316', medio: '#ffd166', bajo: '#00ba7c' };
+    const sevLabels = { critico: 'CRITICO', alto: 'ALTO', medio: 'MEDIO', bajo: 'BAJO' };
+    const trendIcons = { escalando: '&#9650;', estable: '&#9654;', declinando: '&#9660;' };
+    const trendClasses = { escalando: 'trend-escalando', estable: 'trend-estable', declinando: 'trend-declinando' };
+    const catLabels = {
+        reputacion_personal: 'Reputacion Personal', legal: 'Legal', rendimiento: 'Rendimiento',
+        fichaje: 'Fichaje', lesion: 'Lesion', disciplina: 'Disciplina',
+        comercial: 'Comercial', imagen_publica: 'Imagen Publica',
+    };
+
+    // Sort narrativas by severity
+    const narrativas = (intel.narrativas || []).sort((a, b) => (sevOrder[a.severidad] ?? 9) - (sevOrder[b.severidad] ?? 9));
+    const signals = intel.signals || [];
+
+    // Build risk history sparkline
+    let riskSparkHtml = '';
+    if (intel.risk_history && intel.risk_history.length > 1) {
+        const vals = intel.risk_history.map(h => h.risk_score);
+        const mn = Math.min(...vals) - 5, mx = Math.max(...vals) + 5;
+        const rng = mx - mn || 1;
+        const sw = 140, sh = 36;
+        const pts = vals.map((v, i) => `${(i / (vals.length - 1)) * sw},${sh - ((v - mn) / rng) * sh}`).join(' ');
+        riskSparkHtml = `
+            <div class="flex-shrink-0" title="Tendencia de riesgo">
+                <svg width="${sw}" height="${sh + 4}" class="overflow-visible">
+                    <polyline points="${pts}" fill="none" stroke="${riskColor}" stroke-width="2" stroke-linejoin="round"/>
+                    <circle cx="${sw}" cy="${sh - ((vals[vals.length-1] - mn) / rng) * sh}" r="3" fill="${riskColor}"/>
+                </svg>
+                <div class="text-[9px] text-gray-600 text-center mt-1">${intel.risk_history.length} escaneos</div>
+            </div>`;
+    }
+
+    // Count by severity
+    const sevCounts = { critico: 0, alto: 0, medio: 0, bajo: 0 };
+    narrativas.forEach(n => { if (sevCounts[n.severidad] !== undefined) sevCounts[n.severidad]++; });
+
+    container.innerHTML = `
+        <div class="space-y-4">
+            <!-- Risk Score Header -->
+            <div class="bg-dark-700 rounded-xl border border-gray-800 p-4 sm:p-5">
+                <div class="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                    <div class="text-center flex-shrink-0">
+                        <div class="relative w-20 h-20 sm:w-24 sm:h-24">
+                            <svg viewBox="0 0 100 100" class="w-20 h-20 sm:w-24 sm:h-24 transform -rotate-90">
+                                <circle cx="50" cy="50" r="42" fill="none" stroke="#222" stroke-width="8"/>
+                                <circle cx="50" cy="50" r="42" fill="none" stroke="${riskColor}" stroke-width="8"
+                                    stroke-dasharray="${rs * 2.64} 264" stroke-linecap="round"/>
+                            </svg>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <span class="text-xl sm:text-2xl font-bold" style="color:${riskColor}">${rs}</span>
+                            </div>
+                        </div>
+                        <div class="text-xs font-bold mt-1" style="color:${riskColor}">${riskLabel}</div>
+                        <div class="text-[10px] text-gray-600 uppercase tracking-wider">Riesgo Global</div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm text-gray-300 leading-relaxed mb-3">${escapeHtml(intel.resumen || '')}</p>
+                        ${intel.recomendacion ? `
+                            <div class="bg-accent/10 border border-accent/30 rounded-lg p-3">
+                                <div class="text-[10px] text-accent uppercase tracking-wider font-semibold mb-1">Recomendacion Principal</div>
+                                <p class="text-sm text-white">${escapeHtml(intel.recomendacion)}</p>
+                            </div>` : ''}
+                    </div>
+                    ${riskSparkHtml}
+                </div>
+                <!-- Severity summary row -->
+                <div class="flex gap-3 mt-4 pt-3 border-t border-gray-800 justify-center flex-wrap">
+                    ${Object.entries(sevCounts).map(([sev, count]) => `
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background:${sevColors[sev]}"></span>
+                            <span class="text-xs text-gray-400">${sevLabels[sev]}: <strong class="text-white">${count}</strong></span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+
+            <!-- Narrativas -->
+            ${narrativas.length > 0 ? `
+            <div>
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Narrativas Detectadas (${narrativas.length})</h3>
+                <div class="space-y-3">
+                    ${narrativas.map(n => {
+                        const sc = sevColors[n.severidad] || '#71767b';
+                        const sl = sevLabels[n.severidad] || 'N/A';
+                        const tc = trendClasses[n.tendencia] || '';
+                        const ti = trendIcons[n.tendencia] || '';
+                        const cat = catLabels[n.categoria] || n.categoria;
+                        const fuentes = (n.fuentes || []).join(', ');
+                        return `
+                        <div class="severity-${n.severidad} bg-dark-700 rounded-xl border border-gray-800 p-4 fade-in">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="severity-label sev-${n.severidad}">${sl}</span>
+                                    <span class="cat-badge cat-${n.categoria}">${escapeHtml(cat)}</span>
+                                    ${n.tendencia ? `<span class="${tc} text-xs font-semibold">${ti} ${n.tendencia}</span>` : ''}
+                                </div>
+                                <div class="flex items-center gap-2 text-xs text-gray-500">
+                                    <span>${n.num_items || 0} items</span>
+                                    ${fuentes ? `<span>| ${escapeHtml(fuentes)}</span>` : ''}
+                                </div>
+                            </div>
+                            <h4 class="text-sm font-semibold text-white mb-1">${escapeHtml(n.titulo || '')}</h4>
+                            <p class="text-xs text-gray-400 leading-relaxed">${escapeHtml(n.descripcion || '')}</p>
+                            ${n.recomendacion ? `
+                                <div class="mt-2 pt-2 border-t border-gray-800">
+                                    <span class="text-[10px] text-accent uppercase tracking-wider font-semibold">Rec:</span>
+                                    <span class="text-xs text-gray-300 ml-1">${escapeHtml(n.recomendacion)}</span>
+                                </div>` : ''}
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>` : ''}
+
+            <!-- Senales Tempranas -->
+            ${signals.length > 0 ? `
+            <div>
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Senales Tempranas (${signals.length})</h3>
+                <div class="space-y-2">
+                    ${signals.map(s => {
+                        const cat = catLabels[s.categoria] || s.categoria || '';
+                        return `
+                        <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 flex flex-col sm:flex-row sm:items-start gap-2">
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                <span class="text-yellow-400 text-lg">&#9888;</span>
+                                ${cat ? `<span class="cat-badge cat-${s.categoria}">${escapeHtml(cat)}</span>` : ''}
+                                ${s.probabilidad ? `<span class="text-[10px] text-gray-500">${s.probabilidad}%</span>` : ''}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm text-gray-300">${escapeHtml(s.descripcion || '')}</p>
+                                ${s.evidencia ? `<p class="text-xs text-gray-500 mt-1">Evidencia: ${escapeHtml(s.evidencia)}</p>` : ''}
+                                ${s.accion_sugerida ? `<p class="text-xs text-accent mt-1">Accion: ${escapeHtml(s.accion_sugerida)}</p>` : ''}
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>` : ''}
+
+            <!-- Report metadata -->
+            ${intel.created_at ? `
+            <div class="text-right text-[10px] text-gray-600 mt-2">
+                Analisis generado: ${formatDateTime(intel.created_at)} | Tokens: ${intel.tokens_used || '?'}
+            </div>` : ''}
+        </div>
+    `;
+}
+
 function renderInforme(weeklyReports, imageIndex) {
     const container = document.getElementById('tab-informe');
 
@@ -1190,14 +1366,19 @@ async function showPortfolio() {
     grid.innerHTML = '<div class="col-span-3 text-center text-gray-500 py-8">Cargando portfolio...</div>';
 
     try {
-        const [data, sparkData] = await Promise.all([
+        const [data, sparkData, intelData] = await Promise.all([
             fetch('/api/portfolio').then(r => r.json()),
             fetch('/api/portfolio/sparklines').then(r => r.json()).catch(() => ({})),
+            fetch('/api/portfolio/intelligence').then(r => r.json()).catch(() => []),
         ]);
         if (!data.length) {
             grid.innerHTML = '<div class="col-span-3 text-center text-gray-500 py-8">Sin jugadores registrados</div>';
             return;
         }
+
+        // Build intel lookup by player_id
+        const intelMap = {};
+        (intelData || []).forEach(i => { intelMap[i.player_id] = i; });
 
         grid.innerHTML = data.map(p => {
             // Build mini sparkline SVG from sparkData
@@ -1217,6 +1398,21 @@ async function showPortfolio() {
             const label = idx >= 70 ? 'BIEN' : idx >= 40 ? 'NEUTRO' : 'RIESGO';
             const s = p.summary || {};
 
+            // Intelligence risk badge
+            const pi = intelMap[p.id];
+            let riskBadgeHtml = '';
+            if (pi && pi.risk_score !== undefined) {
+                const rrs = Math.round(pi.risk_score);
+                const rc = rrs >= 70 ? '#f4212e' : rrs >= 40 ? '#ffd166' : '#00ba7c';
+                const hrc = pi.high_risk_count || 0;
+                riskBadgeHtml = `
+                    <div class="flex items-center gap-1.5 mt-1">
+                        <span class="w-2 h-2 rounded-full" style="background:${rc}"></span>
+                        <span class="text-[10px] font-semibold" style="color:${rc}">Riesgo: ${rrs}</span>
+                        ${hrc > 0 ? `<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 font-bold">${hrc} criticas</span>` : ''}
+                    </div>`;
+            }
+
             const initials = (p.name || '').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
             const photoHtml = p.photo_url
                 ? `<img src="${p.photo_url}" class="w-12 h-12 rounded-full object-cover border-2" style="border-color:${color}">`
@@ -1231,6 +1427,7 @@ async function showPortfolio() {
                         <div class="flex-1 min-w-0">
                             <div class="font-semibold text-white truncate text-sm sm:text-base">${p.name}</div>
                             <div class="text-[10px] sm:text-xs text-gray-500">${p.club || ''} ${p.market_value ? '| ' + p.market_value : ''}</div>
+                            ${riskBadgeHtml}
                         </div>
                         <div class="text-center flex-shrink-0">
                             <div class="relative w-12 h-12 sm:w-14 sm:h-14">

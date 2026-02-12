@@ -177,6 +177,39 @@ async def init_db():
                 FOREIGN KEY (player_id) REFERENCES players(id)
             );
         """)
+        # Intelligence tables
+        await conn.executescript("""
+            CREATE TABLE IF NOT EXISTS intelligence_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                player_id INTEGER NOT NULL,
+                scan_log_id INTEGER,
+                risk_score REAL,
+                narrativas_json TEXT,
+                signals_json TEXT,
+                recommendations_json TEXT,
+                raw_response_json TEXT,
+                tokens_used INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY (player_id) REFERENCES players(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS narrativas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                player_id INTEGER NOT NULL,
+                intelligence_report_id INTEGER NOT NULL,
+                titulo TEXT NOT NULL,
+                descripcion TEXT,
+                categoria TEXT NOT NULL,
+                severidad TEXT NOT NULL,
+                tendencia TEXT,
+                num_items INTEGER DEFAULT 0,
+                item_ids_json TEXT,
+                fuentes_json TEXT,
+                recomendacion TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+        """)
+
         # Weekly reports table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS weekly_reports (
@@ -238,6 +271,19 @@ async def init_db():
             )
         except Exception:
             pass
+        # Intelligence indexes
+        for idx_sql in [
+            "CREATE INDEX IF NOT EXISTS idx_intel_player ON intelligence_reports(player_id)",
+            "CREATE INDEX IF NOT EXISTS idx_intel_scanlog ON intelligence_reports(scan_log_id)",
+            "CREATE INDEX IF NOT EXISTS idx_narrativas_player ON narrativas(player_id)",
+            "CREATE INDEX IF NOT EXISTS idx_narrativas_report ON narrativas(intelligence_report_id)",
+            "CREATE INDEX IF NOT EXISTS idx_narrativas_severity ON narrativas(player_id, severidad)",
+            "CREATE INDEX IF NOT EXISTS idx_narrativas_category ON narrativas(player_id, categoria)",
+        ]:
+            try:
+                await conn.execute(idx_sql)
+            except Exception:
+                pass
         await _migrate_normalize_dates(conn)
         await conn.commit()
 
@@ -1250,6 +1296,116 @@ async def get_top_influencers(player_id, limit=10):
 
 
 # ── Portfolio sparkline data ──
+
+async def save_intelligence_report(player_id, scan_log_id, data):
+    """Save intelligence analysis results + individual narrativas."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        cursor = await conn.execute(
+            """INSERT INTO intelligence_reports
+            (player_id, scan_log_id, risk_score, narrativas_json, signals_json,
+             recommendations_json, raw_response_json, tokens_used)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (player_id, scan_log_id,
+             data.get("riesgo_global", 0),
+             json.dumps(data.get("narrativas", []), ensure_ascii=False),
+             json.dumps(data.get("senales_tempranas", []), ensure_ascii=False),
+             json.dumps([data.get("recomendacion_principal", "")], ensure_ascii=False),
+             json.dumps(data, ensure_ascii=False),
+             data.get("tokens_used", 0)),
+        )
+        report_id = cursor.lastrowid
+
+        for n in data.get("narrativas", []):
+            await conn.execute(
+                """INSERT INTO narrativas
+                (player_id, intelligence_report_id, titulo, descripcion,
+                 categoria, severidad, tendencia, num_items, item_ids_json,
+                 fuentes_json, recomendacion)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (player_id, report_id, n.get("titulo", ""),
+                 n.get("descripcion", ""), n.get("categoria", "otro"),
+                 n.get("severidad", "bajo"), n.get("tendencia", "estable"),
+                 len(n.get("items", [])),
+                 json.dumps(n.get("items", [])),
+                 json.dumps(n.get("fuentes", [])),
+                 n.get("recomendacion", "")),
+            )
+        await conn.commit()
+        return report_id
+
+
+async def get_last_intelligence_report(player_id):
+    """Get most recent intelligence report for a player."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.execute(
+            "SELECT * FROM intelligence_reports WHERE player_id = ? ORDER BY created_at DESC LIMIT 1",
+            (player_id,),
+        )
+        row = await cursor.fetchone()
+        if row:
+            r = dict(row)
+            r["narrativas"] = json.loads(r.get("narrativas_json") or "[]")
+            r["signals"] = json.loads(r.get("signals_json") or "[]")
+            r["recommendations"] = json.loads(r.get("recommendations_json") or "[]")
+            return r
+        return None
+
+
+async def get_intelligence_history(player_id, limit=10):
+    """Get intelligence report history (risk score trend)."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.execute(
+            """SELECT ir.id, ir.risk_score, ir.tokens_used, ir.created_at,
+                      sl.started_at as scan_date
+               FROM intelligence_reports ir
+               LEFT JOIN scan_log sl ON sl.id = ir.scan_log_id
+               WHERE ir.player_id = ?
+               ORDER BY ir.created_at DESC LIMIT ?""",
+            (player_id, limit),
+        )
+        return [dict(r) for r in await cursor.fetchall()]
+
+
+async def get_narrativas_active(player_id, limit=20):
+    """Get most recent narrativas for a player, ordered by severity."""
+    severity_order = "CASE severidad WHEN 'critico' THEN 1 WHEN 'alto' THEN 2 WHEN 'medio' THEN 3 WHEN 'bajo' THEN 4 END"
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.execute(
+            f"""SELECT * FROM narrativas
+                WHERE player_id = ? AND intelligence_report_id = (
+                    SELECT id FROM intelligence_reports WHERE player_id = ?
+                    ORDER BY created_at DESC LIMIT 1
+                )
+                ORDER BY {severity_order}, num_items DESC
+                LIMIT ?""",
+            (player_id, player_id, limit),
+        )
+        rows = [dict(r) for r in await cursor.fetchall()]
+        for r in rows:
+            r["items"] = json.loads(r.get("item_ids_json") or "[]")
+            r["fuentes"] = json.loads(r.get("fuentes_json") or "[]")
+        return rows
+
+
+async def get_portfolio_intelligence():
+    """Get latest risk score + critical narrativa count for all players."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.execute("""
+            SELECT p.id as player_id, p.name, ir.risk_score, ir.created_at as intel_date,
+                   (SELECT COUNT(*) FROM narrativas n
+                    WHERE n.intelligence_report_id = ir.id
+                    AND n.severidad IN ('critico', 'alto')) as high_risk_count
+            FROM players p
+            LEFT JOIN intelligence_reports ir ON ir.player_id = p.id
+                AND ir.id = (SELECT MAX(id) FROM intelligence_reports WHERE player_id = p.id)
+            ORDER BY p.name
+        """)
+        return [dict(r) for r in await cursor.fetchall()]
+
 
 async def get_portfolio_sparklines():
     """Get recent scan metrics for sparklines in portfolio cards."""
