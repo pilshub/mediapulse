@@ -25,9 +25,8 @@ async def run_scan(player_data: dict, update_status=True):
     update_status: if True, updates the global scan_status for UI polling
     Returns dict with scan results.
     """
-    global scan_status
     if update_status:
-        scan_status = {"running": True, "progress": "Iniciando...", "player_id": None}
+        scan_status.update({"running": True, "progress": "Iniciando...", "player_id": None})
 
     name = player_data.get("name", "")
     twitter = player_data.get("twitter")
