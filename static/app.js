@@ -780,9 +780,9 @@ function renderAlerts(items) {
                     <div class="p-4 card-hover alert-${item.severity || 'baja'} ${item.read ? 'alert-read' : 'alert-unread'}" id="alert-${item.id}">
                         <div class="flex items-start gap-3">
                             <span class="text-xl">${item.severity === 'alta' ? '&#9888;' : item.severity === 'media' ? '&#9432;' : '&#8505;'}</span>
-                            <div class="flex-1">
-                                <div class="flex items-center gap-2 mb-1">
-                                    <span class="text-sm font-semibold text-white">${item.title}</span>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                    <span class="text-sm font-semibold text-white">${escapeHtml(item.title)}</span>
                                     <span class="text-xs px-2 py-0.5 rounded-full ${
                                         item.severity === 'alta' ? 'bg-red-500/20 text-red-400' :
                                         item.severity === 'media' ? 'bg-yellow-500/20 text-yellow-400' :
@@ -790,7 +790,21 @@ function renderAlerts(items) {
                                     }">${item.severity}</span>
                                     ${!item.read ? '<span class="w-2 h-2 rounded-full bg-accent"></span>' : ''}
                                 </div>
-                                <p class="text-sm text-gray-400">${item.message}</p>
+                                <div class="text-sm text-gray-400 whitespace-pre-line">${escapeHtml(item.message)}</div>
+                                ${(() => {
+                                    try {
+                                        const data = typeof item.data_json === 'string' ? JSON.parse(item.data_json) : item.data_json;
+                                        if (!data) return '';
+                                        const titles = data.titles || data.samples || [];
+                                        if (titles.length === 0) return '';
+                                        return '<div class="mt-2 pt-2 border-t border-gray-800 space-y-1">' +
+                                            titles.slice(0, 4).map(t =>
+                                                '<div class="text-xs text-gray-500 truncate">' + escapeHtml(t) + '</div>'
+                                            ).join('') +
+                                            (titles.length > 4 ? '<div class="text-xs text-gray-600">... y ' + (titles.length - 4) + ' mas</div>' : '') +
+                                        '</div>';
+                                    } catch(e) { return ''; }
+                                })()}
                                 <div class="flex items-center gap-3 mt-2">
                                     <span class="text-xs text-gray-600">${formatDate(item.created_at)}</span>
                                     ${!item.read ? `<button onclick="markAlertRead(${item.id})" class="text-xs text-accent hover:underline">Marcar leida</button>` : ''}
