@@ -65,17 +65,18 @@ async def _run_apify_actor(session, actor_id, input_data, max_items=100, retries
     return []
 
 
-async def scrape_player_twitter(twitter_handle, session):
+async def scrape_player_twitter(twitter_handle, session, max_items=None):
     if not twitter_handle:
         return []
 
+    limit = max_items or MAX_TWEETS_PLAYER
     input_data = {
         "startUrls": [{"url": f"https://twitter.com/{twitter_handle}"}],
-        "maxItems": MAX_TWEETS_PLAYER,
+        "maxItems": limit,
         "sort": "Latest",
     }
 
-    tweets = await _run_apify_actor(session, TWITTER_ACTOR, input_data, MAX_TWEETS_PLAYER)
+    tweets = await _run_apify_actor(session, TWITTER_ACTOR, input_data, limit)
     items = []
 
     for tweet in tweets:
@@ -111,17 +112,18 @@ async def scrape_player_twitter(twitter_handle, session):
     return items
 
 
-async def scrape_player_instagram(instagram_handle, session):
+async def scrape_player_instagram(instagram_handle, session, max_items=None):
     if not instagram_handle:
         return []
 
+    limit = max_items or MAX_INSTAGRAM_POSTS
     input_data = {
         "directUrls": [f"https://www.instagram.com/{instagram_handle}/"],
         "resultsType": "posts",
-        "resultsLimit": MAX_INSTAGRAM_POSTS,
+        "resultsLimit": limit,
     }
 
-    posts = await _run_apify_actor(session, INSTAGRAM_ACTOR, input_data, MAX_INSTAGRAM_POSTS)
+    posts = await _run_apify_actor(session, INSTAGRAM_ACTOR, input_data, limit)
     items = []
 
     for post in posts:
@@ -157,18 +159,19 @@ async def scrape_player_instagram(instagram_handle, session):
     return items
 
 
-async def scrape_player_tiktok(tiktok_handle, session):
+async def scrape_player_tiktok(tiktok_handle, session, max_items=None):
     """Scrape player's own TikTok posts via Apify."""
     if not tiktok_handle:
         return []
 
+    limit = max_items or MAX_TIKTOK_POSTS
     input_data = {
         "profiles": [tiktok_handle],
-        "resultsPerPage": MAX_TIKTOK_POSTS,
+        "resultsPerPage": limit,
         "shouldDownloadVideos": False,
     }
 
-    videos = await _run_apify_actor(session, TIKTOK_ACTOR, input_data, MAX_TIKTOK_POSTS)
+    videos = await _run_apify_actor(session, TIKTOK_ACTOR, input_data, limit)
     items = []
 
     for video in videos:
@@ -207,9 +210,9 @@ async def scrape_all_player_posts(twitter_handle=None, instagram_handle=None, ti
 
     async with aiohttp.ClientSession() as session:
         twitter, instagram, tiktok = await asyncio.gather(
-            scrape_player_twitter(twitter_handle, session),
-            scrape_player_instagram(instagram_handle, session),
-            scrape_player_tiktok(tiktok_handle, session),
+            scrape_player_twitter(twitter_handle, session, max_items=tw_limit),
+            scrape_player_instagram(instagram_handle, session, max_items=ig_limit),
+            scrape_player_tiktok(tiktok_handle, session, max_items=tk_limit),
         )
     total = twitter + instagram + tiktok
     log.info(f"[player] Total posts del jugador: {len(total)}")

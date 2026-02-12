@@ -10,10 +10,11 @@ from db import normalize_date
 from config import (
     APIFY_TOKEN, APIFY_BASE, TWITTER_ACTOR, TIKTOK_ACTOR,
     REDDIT_SUBREDDITS, MAX_TWEETS_MENTIONS, MAX_REDDIT_POSTS, MAX_TIKTOK_POSTS,
-    TELEGRAM_CHANNELS,
+    TELEGRAM_CHANNELS, GOOGLE_NEWS_RSS, FORUM_SITES,
 )
 from scrapers.youtube import scrape_youtube
 from scrapers.telegram import scrape_all_telegram
+import feedparser
 
 log = logging.getLogger("agentradar")
 
@@ -74,21 +75,23 @@ def _build_search_queries(player_name, twitter_handle=None, club=None):
     return queries
 
 
-async def scrape_twitter_mentions(player_name, session, twitter_handle=None, club=None):
+async def scrape_twitter_mentions(player_name, session, twitter_handle=None, club=None,
+                                   max_items=None):
     if not APIFY_TOKEN:
         log.info("[social] No APIFY_TOKEN, skipping Twitter mentions")
         return []
 
+    limit = max_items or MAX_TWEETS_MENTIONS
     search_terms = _build_search_queries(player_name, twitter_handle, club)
-    log.info(f"[social] Twitter search terms: {search_terms}")
+    log.info(f"[social] Twitter search terms: {search_terms} (limit={limit})")
 
     input_data = {
         "searchTerms": search_terms,
-        "maxItems": MAX_TWEETS_MENTIONS,
+        "maxItems": limit,
         "sort": "Latest",
     }
 
-    tweets = await _apify_run_with_retry(session, TWITTER_ACTOR, input_data, MAX_TWEETS_MENTIONS, "Twitter")
+    tweets = await _apify_run_with_retry(session, TWITTER_ACTOR, input_data, limit, "Twitter")
     items = []
     for tweet in tweets:
         items.append({
@@ -108,7 +111,9 @@ async def scrape_twitter_mentions(player_name, session, twitter_handle=None, clu
 
 async def scrape_reddit(player_name, session):
     items = []
-    headers = {"User-Agent": "AgentRadar/1.0 (OSINT football monitor)"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    }
 
     for sub in REDDIT_SUBREDDITS:
         try:
@@ -153,23 +158,24 @@ async def scrape_reddit(player_name, session):
     return items
 
 
-async def scrape_tiktok_mentions(player_name, session, club=None):
+async def scrape_tiktok_mentions(player_name, session, club=None, max_items=None):
     """Scrape TikTok mentions via Apify with retry."""
     if not APIFY_TOKEN:
         log.info("[social] No APIFY_TOKEN, skipping TikTok mentions")
         return []
 
+    limit = max_items or MAX_TIKTOK_POSTS
     search_query = f'"{player_name}"'
     if club:
         search_query += f" {club}"
 
     input_data = {
         "searchQueries": [search_query],
-        "resultsPerPage": MAX_TIKTOK_POSTS,
+        "resultsPerPage": limit,
         "shouldDownloadVideos": False,
     }
 
-    videos = await _apify_run_with_retry(session, TIKTOK_ACTOR, input_data, MAX_TIKTOK_POSTS, "TikTok")
+    videos = await _apify_run_with_retry(session, TIKTOK_ACTOR, input_data, limit, "TikTok")
     items = []
     for video in videos:
         text = video.get("text", "") or video.get("desc", "")
@@ -188,25 +194,70 @@ async def scrape_tiktok_mentions(player_name, session, club=None):
     return items
 
 
+async def scrape_google_web(player_name, session, club=None):
+    """Search forums, blogs, and fan sites via Google News RSS with site: operator."""
+    items = []
+    quoted = f'"{player_name}"'
+
+    for site_name, domain in FORUM_SITES.items():
+        query = f'{quoted}+site:{domain}'
+        url = GOOGLE_NEWS_RSS.format(query=query.replace(" ", "+"))
+        try:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                if resp.status == 200:
+                    text = await resp.text()
+                    feed = feedparser.parse(text)
+                    for entry in feed.entries[:10]:
+                        items.append({
+                            "platform": site_name.lower().replace(" ", "_"),
+                            "author": site_name,
+                            "text": entry.get("title", "") + " " + entry.get("summary", "")[:200],
+                            "url": entry.get("link", ""),
+                            "likes": 0,
+                            "retweets": 0,
+                            "created_at": _parse_date_simple(entry),
+                        })
+        except Exception as e:
+            log.error(f"[social] Google web {site_name} error: {e}")
+
+    log.info(f"[social] Google Web: {len(items)} resultados de {len(FORUM_SITES)} sitios")
+    return items
+
+
+def _parse_date_simple(entry):
+    for field in ["published_parsed", "updated_parsed"]:
+        tp = entry.get(field)
+        if tp:
+            try:
+                return datetime(*tp[:6]).isoformat()
+            except Exception:
+                pass
+    return entry.get("published", entry.get("updated", datetime.now().isoformat()))
+
+
 async def scrape_all_social(player_name, twitter_handle=None, club=None, limit_multiplier=1):
     # Override limits for deep scrape
     tw_limit = MAX_TWEETS_MENTIONS * limit_multiplier
     tk_limit = MAX_TIKTOK_POSTS * limit_multiplier
-    rd_limit = MAX_REDDIT_POSTS * limit_multiplier
     if limit_multiplier > 1:
-        log.info(f"[social] Deep scrape mode: {limit_multiplier}x limits (tw={tw_limit}, tk={tk_limit}, rd={rd_limit})")
+        log.info(f"[social] Deep scrape mode: {limit_multiplier}x limits (tw={tw_limit}, tk={tk_limit})")
 
     async with aiohttp.ClientSession() as session:
         twitter, reddit, youtube, tiktok = await asyncio.gather(
-            scrape_twitter_mentions(player_name, session, twitter_handle, club),
+            scrape_twitter_mentions(player_name, session, twitter_handle, club,
+                                    max_items=tw_limit),
             scrape_reddit(player_name, session),
             scrape_youtube(player_name, session),
-            scrape_tiktok_mentions(player_name, session, club),
+            scrape_tiktok_mentions(player_name, session, club, max_items=tk_limit),
         )
 
-    # Telegram (sync, doesn't need aiohttp session from here)
+    # Telegram
     telegram = await scrape_all_telegram(player_name, TELEGRAM_CHANNELS)
 
-    total = twitter + reddit + youtube + tiktok + telegram
-    log.info(f"[social] Total menciones: {len(total)} (Twitter: {len(twitter)}, Reddit: {len(reddit)}, YouTube: {len(youtube)}, TikTok: {len(tiktok)}, Telegram: {len(telegram)})")
+    # Google Web Search (forums, blogs, fan sites)
+    async with aiohttp.ClientSession() as session:
+        web_results = await scrape_google_web(player_name, session, club)
+
+    total = twitter + reddit + youtube + tiktok + telegram + web_results
+    log.info(f"[social] Total menciones: {len(total)} (Twitter={len(twitter)}, Reddit={len(reddit)}, YouTube={len(youtube)}, TikTok={len(tiktok)}, Telegram={len(telegram)}, Web={len(web_results)})")
     return total

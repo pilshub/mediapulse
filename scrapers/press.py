@@ -3,7 +3,9 @@ import feedparser
 import asyncio
 import logging
 import unicodedata
+import re
 from datetime import datetime
+from bs4 import BeautifulSoup
 
 import sys
 import os
@@ -112,6 +114,64 @@ async def scrape_spanish_press(player_name, session):
     return items
 
 
+async def _fetch_article_text(session, url, timeout=8):
+    """Fetch and extract the main text content of a news article."""
+    try:
+        # Follow Google News redirects to get real article URL
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout),
+                               allow_redirects=True) as resp:
+            if resp.status != 200:
+                return ""
+            html = await resp.text()
+
+        soup = BeautifulSoup(html, "lxml")
+
+        # Remove scripts, styles, nav, header, footer, ads
+        for tag in soup.find_all(["script", "style", "nav", "header", "footer",
+                                   "aside", "iframe", "form", "noscript"]):
+            tag.decompose()
+
+        # Try common article content selectors
+        article = (
+            soup.find("article")
+            or soup.find("div", class_=re.compile(r"article|post|content|entry|body", re.I))
+            or soup.find("main")
+        )
+
+        if article:
+            paragraphs = article.find_all("p")
+        else:
+            paragraphs = soup.find_all("p")
+
+        text = " ".join(p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True)) > 30)
+        # Limit to ~2000 chars to save tokens
+        return text[:2000] if text else ""
+    except Exception:
+        return ""
+
+
+async def _enrich_articles_with_text(session, items, max_concurrent=5):
+    """Fetch full article text for press items in parallel."""
+    sem = asyncio.Semaphore(max_concurrent)
+
+    async def fetch_one(item):
+        async with sem:
+            url = item.get("url", "")
+            if not url or "news.google.com" in url:
+                # Google News URLs redirect, try anyway
+                pass
+            text = await _fetch_article_text(session, url)
+            if text:
+                item["full_text"] = text
+                # Also enrich summary if it was just HTML
+                if item.get("summary", "").startswith("<"):
+                    item["summary"] = text[:500]
+
+    await asyncio.gather(*[fetch_one(item) for item in items], return_exceptions=True)
+    enriched = sum(1 for i in items if i.get("full_text"))
+    log.info(f"[press] Article text enrichment: {enriched}/{len(items)} articles fetched")
+
+
 async def scrape_all_press(player_name, club=None, limit_multiplier=1):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AgentRadar/1.0"}
     if limit_multiplier > 1:
@@ -144,6 +204,12 @@ async def scrape_all_press(player_name, club=None, limit_multiplier=1):
         unique = filtered
 
     log.info(f"[press] Total: {len(unique)} noticias (Google={len(google)}, SiteSearch={len(site_search)}, RSS={len(rss_feeds)})")
+
+    # Enrich articles with full text for better GPT-4o analysis
+    if unique:
+        async with aiohttp.ClientSession(headers=headers) as session:
+            await _enrich_articles_with_text(session, unique)
+
     return unique
 
 

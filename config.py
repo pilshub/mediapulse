@@ -23,8 +23,9 @@ SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASS = os.getenv("SMTP_PASS", "")
 DIGEST_RECIPIENTS = os.getenv("DIGEST_RECIPIENTS", "")  # comma-separated
 
-# Telegram channels to scrape
-TELEGRAM_CHANNELS = [c.strip() for c in os.getenv("TELEGRAM_CHANNELS", "").split(",") if c.strip()]
+# Telegram channels to scrape (Spanish football news)
+_default_telegram = "fichaboreal,noticiasfutbol_es,transfermarktES,LaLigaNews_es,mundodeportivoes"
+TELEGRAM_CHANNELS = [c.strip() for c in os.getenv("TELEGRAM_CHANNELS", _default_telegram).split(",") if c.strip()]
 
 # Apify
 APIFY_BASE = "https://api.apify.com/v2"
@@ -77,7 +78,21 @@ INVIDIOUS_INSTANCES = [
 MAX_YOUTUBE_RESULTS = 20
 
 # Reddit
-REDDIT_SUBREDDITS = ["soccer", "LaLiga", "futbol", "calcio", "SerieA", "football", "PremierLeague", "Bundesliga", "Ligue1"]
+REDDIT_SUBREDDITS = ["soccer", "LaLiga", "futbol", "calcio", "SerieA", "football", "PremierLeague", "Bundesliga", "Ligue1", "RealBetis", "SevillaFC"]
+
+# Forums, blogs, fan sites (Google web search with site:)
+FORUM_SITES = {
+    "ForoCoches": "forocoches.com",
+    "Mediavida": "mediavida.com",
+    "El Desmarque": "eldesmarque.com",
+    "Todo Fichajes": "todofichajes.com",
+    "FutbolFantasy": "futbolfantasy.com",
+    "Soy del Betis": "soydelbetis.com",
+    "Sevilla Fans": "sevillafc.es",
+    "Football Espana": "footballespana.net",
+    "La Colina de Nervion": "lacolinadenervion.com",
+    "TribaLa": "tribala.com",
+}
 
 # Limites scraping
 MAX_TWEETS_MENTIONS = 200

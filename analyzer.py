@@ -324,8 +324,10 @@ async def generate_intelligence_report(player_id, player_name, club, scan_log_id
     # Build token-efficient digest: 1 line per item
     digest_lines = []
     for item in press:
+        title = (item.get('title', '') or '')[:80]
+        summary = (item.get('summary', '') or '').replace('\n', ' ')[:120]
         digest_lines.append(
-            f"P{item['id']}|prensa|{item.get('source', '')}|{item.get('sentiment_label', 'neutro')}|{(item.get('title', '') or '')[:80]}"
+            f"P{item['id']}|prensa|{item.get('source', '')}|{item.get('sentiment_label', 'neutro')}|{title}|{summary}"
         )
     for item in social:
         text = (item.get("text", "") or "").replace("\n", " ")[:80]
