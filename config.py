@@ -31,26 +31,50 @@ TELEGRAM_CHANNELS = [c.strip() for c in os.getenv("TELEGRAM_CHANNELS", _default_
 APIFY_BASE = "https://api.apify.com/v2"
 TWITTER_ACTOR = "apidojo~tweet-scraper"
 INSTAGRAM_ACTOR = "apify~instagram-scraper"
+INSTAGRAM_HASHTAG_ACTOR = "apify~instagram-hashtag-scraper"
 TIKTOK_ACTOR = "clockworks~tiktok-scraper"
 
-# RSS Feeds prensa deportiva espanola
+# Instagram mention search limits
+MAX_INSTAGRAM_MENTIONS = 50
+
+# RSS Feeds prensa deportiva (espanola + internacional)
 SPANISH_PRESS_FEEDS = {
+    # Spanish
     "Marca": "https://e00-marca.uecdn.es/rss/futbol/primera-division.xml",
     "AS": "https://as.com/rss/tags/futbol.xml",
     "Mundo Deportivo": "https://www.mundodeportivo.com/feed/rss/futbol",
     "El Pais Deportes": "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/deportes/portada",
     "El Mundo Deportes": "https://e00-elmundo.uecdn.es/elmundodeporte/rss/futbol.xml",
     "Relevo": "https://www.relevo.com/rss/futbol.xml",
+    # Italian
     "Gazzetta": "https://www.gazzetta.it/rss/Calcio.xml",
     "Tuttosport": "https://www.tuttosport.com/rss/calcio.xml",
+    "Corriere dello Sport": "https://www.corrieredellosport.it/rss/calcio",
+    # English
+    "BBC Sport": "https://feeds.bbci.co.uk/sport/football/rss.xml",
+    "The Guardian Football": "https://www.theguardian.com/football/rss",
+    "Sky Sports Football": "https://www.skysports.com/rss/12040",
+    # French
+    "L'Equipe": "https://www.lequipe.fr/rss/actu_rss_Football.xml",
+    # German
+    "Kicker": "https://rss.kicker.de/news/aktuell",
 }
 
+# Google News RSS (multi-language: ES, EN, IT, AR, FR, DE)
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={query}&hl=es&gl=ES&ceid=ES:es"
+GOOGLE_NEWS_RSS_INTL = {
+    "en": "https://news.google.com/rss/search?q={query}&hl=en&gl=US&ceid=US:en",
+    "it": "https://news.google.com/rss/search?q={query}&hl=it&gl=IT&ceid=IT:it",
+    "ar": "https://news.google.com/rss/search?q={query}&hl=ar&gl=QA&ceid=QA:ar",
+    "fr": "https://news.google.com/rss/search?q={query}&hl=fr&gl=FR&ceid=FR:fr",
+    "de": "https://news.google.com/rss/search?q={query}&hl=de&gl=DE&ceid=DE:de",
+}
 GOOGLE_ALERTS_RSS = "https://www.google.com/alerts/feeds/{alert_id}"
 
 # Site-specific search: Google News RSS with site: operator
 # Finds articles about the player on each newspaper's website directly
 PRESS_SITE_SEARCH = {
+    # Spanish
     "Marca": "marca.com",
     "AS": "as.com",
     "Mundo Deportivo": "mundodeportivo.com",
@@ -66,19 +90,37 @@ PRESS_SITE_SEARCH = {
     "Fichajes.net": "fichajes.net",
     "BeSoccer": "besoccer.com",
     "Transfermarkt": "transfermarkt.es",
+    # English
+    "BBC Sport": "bbc.com/sport",
+    "The Guardian Sport": "theguardian.com/football",
+    "Sky Sports": "skysports.com",
+    "ESPN": "espn.com",
+    "Goal.com": "goal.com",
+    "Football Italia": "football-italia.net",
+    # Italian
+    "Gazzetta": "gazzetta.it",
+    "Tuttosport": "tuttosport.com",
+    "Corriere dello Sport": "corrieredellosport.it",
+    "Calciomercato": "calciomercato.com",
+    # French
+    "L'Equipe": "lequipe.fr",
+    "Foot Mercato": "footmercato.net",
+    # German
+    "Kicker": "kicker.de",
+    "Transfermarkt DE": "transfermarkt.de",
+    # Arabic
+    "Al Jazeera Sports": "aljazeera.net/sport",
+    "Kooora": "kooora.com",
 }
 
-# YouTube (via Invidious public API - no key needed)
-INVIDIOUS_INSTANCES = [
-    "https://vid.puffyan.us",
-    "https://invidious.fdn.fr",
-    "https://inv.nadeko.net",
-    "https://invidious.nerdvpn.de",
-]
-MAX_YOUTUBE_RESULTS = 20
+# YouTube (via HTML scraping - no API key needed)
 
-# Reddit
-REDDIT_SUBREDDITS = ["soccer", "LaLiga", "futbol", "calcio", "SerieA", "football", "PremierLeague", "Bundesliga", "Ligue1", "RealBetis", "SevillaFC"]
+# Reddit (international subreddits)
+REDDIT_SUBREDDITS = [
+    "soccer", "LaLiga", "futbol", "calcio", "SerieA", "football",
+    "PremierLeague", "Bundesliga", "Ligue1", "RealBetis", "SevillaFC",
+    "soccertransfers", "footballhighlights", "ACMilan", "Juve", "ASRoma",
+]
 
 # Forums, blogs, fan sites (Google web search with site:)
 FORUM_SITES = {
@@ -94,13 +136,14 @@ FORUM_SITES = {
     "TribaLa": "tribala.com",
 }
 
-# Limites scraping
-MAX_TWEETS_MENTIONS = 200
-MAX_TWEETS_PLAYER = 100
-MAX_INSTAGRAM_POSTS = 50
-MAX_REDDIT_POSTS = 50
-MAX_RSS_ITEMS = 50
-MAX_TIKTOK_POSTS = 30
+# Limites scraping (doubled from v1)
+MAX_TWEETS_MENTIONS = 400
+MAX_TWEETS_PLAYER = 200
+MAX_INSTAGRAM_POSTS = 100
+MAX_REDDIT_POSTS = 100
+MAX_RSS_ITEMS = 100
+MAX_TIKTOK_POSTS = 60
+MAX_YOUTUBE_RESULTS = 40
 
 # First scan multiplier (deeper scrape for new players)
 FIRST_SCAN_MULTIPLIER = 3
@@ -132,6 +175,30 @@ RISK_CATEGORIES = [
     "lesion", "disciplina", "comercial", "imagen_publica",
 ]
 SEVERITY_LEVELS = ["critico", "alto", "medio", "bajo"]
+
+# Source credibility weights (1-10 scale)
+# Higher = more reliable/impactful source for sentiment analysis
+SOURCE_WEIGHTS = {
+    # Tier 1: Major national sports press (highest credibility)
+    "Marca": 10, "AS": 10, "Relevo": 9, "El Pais": 10, "El Mundo": 9,
+    "Mundo Deportivo": 9, "Sport": 8, "Google News": 8,
+    # Tier 2: Regional/specialized press
+    "Estadio Deportivo": 7, "Diario de Sevilla": 7, "ABC Sevilla": 7,
+    "La Voz del Sur": 6, "El Desmarque": 6, "BeSoccer": 7,
+    "Fichajes.net": 5, "Transfermarkt": 8,
+    # Tier 3: International press
+    "Gazzetta": 9, "Tuttosport": 7, "BBC Sport": 10, "The Guardian": 9,
+    "Sky Sports": 8, "L'Equipe": 9, "Kicker": 8, "Al Jazeera Sports": 7,
+    # Tier 4: Social platforms (lower credibility per item)
+    "twitter": 4, "reddit": 3, "youtube": 5, "tiktok": 2,
+    "instagram": 3, "telegram": 4,
+    # Tier 5: Forums/blogs (lowest)
+    "forocoches": 2, "mediavida": 2, "Football Espana": 4,
+    "La Colina de Nervion": 5, "TribaLa": 3,
+    "Todo Fichajes": 4, "FutbolFantasy": 3,
+    "Soy del Betis": 3, "Sevilla Fans": 3,
+}
+DEFAULT_SOURCE_WEIGHT = 4
 
 # Server
 HOST = "0.0.0.0"

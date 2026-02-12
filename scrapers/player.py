@@ -95,6 +95,12 @@ async def scrape_player_twitter(twitter_handle, session, max_items=None):
         if tweet.get("isRetweet") or tweet.get("retweeted_status"):
             media_type = "retweet"
 
+        # Extract image URL from media
+        image_url = ""
+        media_list = tweet.get("media") or tweet.get("entities", {}).get("media", [])
+        if isinstance(media_list, list) and media_list:
+            image_url = media_list[0].get("media_url_https", "") or media_list[0].get("url", "")
+
         items.append({
             "platform": "twitter",
             "text": text,
@@ -105,6 +111,7 @@ async def scrape_player_twitter(twitter_handle, session, max_items=None):
             "views": views,
             "engagement_rate": round(eng_rate, 6),
             "media_type": media_type,
+            "image_url": image_url,
             "posted_at": normalize_date(tweet.get("createdAt", tweet.get("created_at", ""))),
         })
 
@@ -142,6 +149,9 @@ async def scrape_player_instagram(instagram_handle, session, max_items=None):
         else:
             media_type = "image"
 
+        # Extract image/thumbnail URL
+        image_url = post.get("displayUrl", "") or post.get("thumbnailSrc", "") or post.get("previewUrl", "")
+
         items.append({
             "platform": "instagram",
             "text": post.get("caption", "") or "",
@@ -152,6 +162,7 @@ async def scrape_player_instagram(instagram_handle, session, max_items=None):
             "views": views,
             "engagement_rate": round(eng_rate, 6),
             "media_type": media_type,
+            "image_url": image_url,
             "posted_at": normalize_date(post.get("timestamp", post.get("taken_at", ""))),
         })
 
@@ -183,6 +194,9 @@ async def scrape_player_tiktok(tiktok_handle, session, max_items=None):
 
         eng_rate = ((likes + comments + shares) / views) if views > 0 else 0
 
+        # TikTok thumbnail
+        image_url = video.get("videoMeta", {}).get("coverUrl", "") or video.get("covers", {}).get("default", "")
+
         items.append({
             "platform": "tiktok",
             "text": text,
@@ -193,6 +207,7 @@ async def scrape_player_tiktok(tiktok_handle, session, max_items=None):
             "views": views,
             "engagement_rate": round(eng_rate, 6),
             "media_type": "video",
+            "image_url": image_url,
             "posted_at": normalize_date(video.get("createTimeISO", video.get("created_at", ""))),
         })
 

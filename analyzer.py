@@ -25,7 +25,7 @@ REGLAS DE RELEVANCIA (SE ESTRICTO):
 - Jugadores con nombre similar pero de otro equipo = NOT relevant (ej: "Juan Antonio Casas" != "Antonio Casas")
 - Noticias genericas del equipo (resultados, fichajes de OTROS jugadores, ruedas de prensa genericas) = NOT relevant
 - Videos/posts de highlights del equipo que no mencionan al jugador = NOT relevant
-- Contenido en otro idioma que no menciona explicitamente al jugador = NOT relevant
+- MULTI-IDIOMA: Los items pueden estar en espanol, ingles, italiano, arabe, frances o aleman. Analiza el contenido en SU idioma original pero responde siempre en espanol.
 - En caso de DUDA, marca relevant: false (es mejor filtrar un item dudoso que contaminar el analisis)
 
 REGLAS DE SENTIMIENTO:
@@ -249,6 +249,62 @@ Tono profesional de agencia de representacion deportiva. En espanol."""
         }
 
 
+async def analyze_images(items, player_name="", max_images=10):
+    """Analyze images from player posts and high-engagement mentions with GPT-4o Vision.
+    Extracts: visible brands, context/location, people, mood, potential risks.
+    Only processes items that have image URLs.
+    """
+    if not client or not items:
+        return items
+
+    # Collect items with image URLs, prioritize by engagement
+    image_items = []
+    for item in items:
+        img_url = item.get("image_url") or item.get("thumbnail_url") or ""
+        if img_url and img_url.startswith("http"):
+            image_items.append((item, img_url))
+
+    if not image_items:
+        return items
+
+    # Sort by engagement (likes) descending, take top N
+    image_items.sort(key=lambda x: (x[0].get("likes", 0) or 0) + (x[0].get("views", 0) or 0), reverse=True)
+    image_items = image_items[:max_images]
+
+    log.info(f"[analyzer] Analyzing {len(image_items)} images with GPT-4o Vision")
+
+    for item, img_url in image_items:
+        try:
+            response = await client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": f"Analiza esta imagen relacionada con el futbolista {player_name}. Responde en JSON con: {{\"brands\": [marcas visibles], \"context\": \"descripcion breve del contexto (entrenamiento, fiesta, evento, etc)\", \"people_count\": N, \"mood\": \"positivo/neutro/negativo\", \"risk_flag\": \"none/low/medium/high\", \"risk_detail\": \"detalle si hay riesgo\"}}. Si no puedes analizar la imagen, devuelve {{\"error\": \"no disponible\"}}."},
+                    {"role": "user", "content": [
+                        {"type": "image_url", "image_url": {"url": img_url, "detail": "low"}},
+                        {"type": "text", "text": f"Contexto: Post de {player_name}. Texto: {(item.get('text', '') or '')[:200]}"},
+                    ]},
+                ],
+                temperature=0.1,
+                max_tokens=300,
+            )
+            content = response.choices[0].message.content.strip()
+            if content.startswith("```"):
+                content = content.split("\n", 1)[1]
+                content = content.rsplit("```", 1)[0]
+            analysis = json.loads(content)
+            if "error" not in analysis:
+                item["image_analysis"] = analysis
+                # Merge detected brands into item brands
+                if analysis.get("brands"):
+                    existing_brands = item.get("brands", [])
+                    item["brands"] = list(set(existing_brands + analysis["brands"]))
+                log.info(f"[analyzer] Image analysis: {analysis.get('context', '?')}, brands={analysis.get('brands', [])}")
+        except Exception as e:
+            log.warning(f"[analyzer] Image analysis error: {e}")
+
+    return items
+
+
 def extract_topics_and_brands(all_items):
     """Aggregate topics and brands from analyzed items."""
     topics = {}
@@ -294,11 +350,19 @@ CALIBRACION DE RIESGO GLOBAL (0-100):
 - 61-80: Problemas claros, multiples narrativas negativas, riesgo reputacional real
 - 81-100: Crisis activa, escandalo viral, accion inmediata necesaria
 
+PONDERACION DE FUENTES (credibilidad 1-10):
+- Tier 1 (9-10): Marca, AS, Relevo, El Pais, Gazzetta, BBC Sport, The Guardian, L'Equipe
+- Tier 2 (7-8): Mundo Deportivo, El Mundo, Estadio Deportivo, BeSoccer, Transfermarkt, Sky Sports, Kicker
+- Tier 3 (4-6): Twitter, YouTube, Telegram, Fichajes.net, blogs especializados
+- Tier 4 (2-3): TikTok, Reddit, Instagram, foros generales
+Una noticia en Marca (10) vale 5x mas que un comentario en Reddit (2). Pondera las narrativas segun la calidad de sus fuentes.
+
 IMPORTANTE: NO pongas 35 por defecto. Calcula el riesgo REAL basado en:
-- Proporcion de items negativos vs positivos
+- Proporcion de items negativos vs positivos, PONDERADOS por credibilidad de fuente
 - Gravedad de los temas (polemica personal > rumor fichaje neutro)
 - Volumen de cobertura (mas items = mas relevancia)
 - Diversidad de fuentes (si lo cubren prensa + redes = mas serio)
+- PESO de las fuentes: una noticia en Marca/AS vale mas que 10 tweets
 {performance_context}
 REGLAS:
 1. Agrupa items del MISMO tema/historia en una narrativa (minimo 2 items para formar narrativa)
@@ -307,6 +371,7 @@ REGLAS:
 4. Las recomendaciones deben ser ACCIONABLES: "Preparar comunicado", "Contactar club", "Monitorizar 48h"
 5. Si hay items sobre fichaje + rendimiento, evalua si son oportunidad o riesgo
 6. Incluye narrativas POSITIVAS tambien (severidad "bajo"), no solo negativas
+7. MULTI-IDIOMA: Los items pueden estar en ES, EN, IT, AR, FR, DE. Analiza en su idioma original, responde siempre en ESPANOL. Indica el idioma de las fuentes cuando sea relevante (ej: "Prensa italiana reporta...")
 {previous_context}
 Responde UNICAMENTE con JSON valido, sin texto extra:
 {{"narrativas":[{{"titulo":"string corto","descripcion":"2-3 frases resumen","categoria":"reputacion_personal","severidad":"medio","tendencia":"estable","items":["P12","S45"],"fuentes":["prensa","twitter"],"recomendacion":"Accion concreta"}}],"senales_tempranas":[{{"descripcion":"string","categoria":"rendimiento","evidencia":["S78"],"probabilidad":"media","accion_sugerida":"string"}}],"riesgo_global":45,"resumen_inteligencia":"2-3 frases situacion general","recomendacion_principal":"Una frase accionable"}}"""

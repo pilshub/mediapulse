@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from db import normalize_date
 from config import (
     APIFY_TOKEN, APIFY_BASE, TWITTER_ACTOR, TIKTOK_ACTOR,
+    INSTAGRAM_HASHTAG_ACTOR, MAX_INSTAGRAM_MENTIONS,
     REDDIT_SUBREDDITS, MAX_TWEETS_MENTIONS, MAX_REDDIT_POSTS, MAX_TIKTOK_POSTS,
     TELEGRAM_CHANNELS, GOOGLE_NEWS_RSS, FORUM_SITES,
 )
@@ -114,12 +115,14 @@ async def _apify_run_with_retry(session, actor, input_data, max_items, label, re
 
 
 def _build_search_queries(player_name, twitter_handle=None, club=None):
-    """Build search queries using Twitter advanced search syntax."""
+    """Build search queries using Twitter advanced search syntax (multi-language)."""
     queries = [f'"{player_name}"']  # Exact match with quotes
     if club:
         queries.append(f'"{player_name}" {club}')
     if twitter_handle:
         queries.append(f"@{twitter_handle}")
+    # International: English football keywords
+    queries.append(f'"{player_name}" football OR soccer OR transfer OR goal')
     return queries
 
 
@@ -286,20 +289,60 @@ def _parse_date_simple(entry):
     return entry.get("published", entry.get("updated", datetime.now().isoformat()))
 
 
-async def scrape_all_social(player_name, twitter_handle=None, club=None, limit_multiplier=1):
+async def scrape_instagram_mentions(player_name, session, instagram_handle=None, max_items=None):
+    """Scrape Instagram hashtag/tag mentions via Apify."""
+    if not APIFY_TOKEN:
+        log.info("[social] No APIFY_TOKEN, skipping Instagram mentions")
+        return []
+
+    limit = max_items or MAX_INSTAGRAM_MENTIONS
+    # Build hashtag from player name: "Rodri Sanchez" -> "rodrisanchez"
+    hashtag = player_name.lower().replace(" ", "").replace("-", "")
+    hashtags = [hashtag]
+    # Also search with handle if available
+    if instagram_handle:
+        hashtags.append(instagram_handle.lower().replace("@", ""))
+
+    input_data = {
+        "hashtags": hashtags,
+        "resultsLimit": limit,
+    }
+
+    posts = await _apify_run_with_retry(session, INSTAGRAM_HASHTAG_ACTOR, input_data, limit, "Instagram Mentions")
+    items = []
+    for post in posts:
+        text = post.get("caption", "") or ""
+        items.append({
+            "platform": "instagram",
+            "author": post.get("ownerUsername", "") or post.get("owner", {}).get("username", "unknown"),
+            "text": text,
+            "url": post.get("url", "") or post.get("shortCode", ""),
+            "likes": post.get("likesCount", post.get("likes", 0)) or 0,
+            "retweets": post.get("commentsCount", post.get("comments", 0)) or 0,
+            "created_at": normalize_date(post.get("timestamp", post.get("taken_at", ""))),
+        })
+
+    log.info(f"[social] Instagram Mentions: {len(items)} posts (hashtags: {hashtags})")
+    return items
+
+
+async def scrape_all_social(player_name, twitter_handle=None, club=None, limit_multiplier=1, instagram_handle=None):
     # Override limits for deep scrape
     tw_limit = MAX_TWEETS_MENTIONS * limit_multiplier
     tk_limit = MAX_TIKTOK_POSTS * limit_multiplier
     if limit_multiplier > 1:
         log.info(f"[social] Deep scrape mode: {limit_multiplier}x limits (tw={tw_limit}, tk={tk_limit})")
 
+    ig_limit = MAX_INSTAGRAM_MENTIONS * limit_multiplier
+
     async with aiohttp.ClientSession() as session:
-        twitter, reddit, youtube, tiktok = await asyncio.gather(
+        twitter, reddit, youtube, tiktok, ig_mentions = await asyncio.gather(
             scrape_twitter_mentions(player_name, session, twitter_handle, club,
                                     max_items=tw_limit),
             scrape_reddit(player_name, session),
             scrape_youtube(player_name, session),
             scrape_tiktok_mentions(player_name, session, club, max_items=tk_limit),
+            scrape_instagram_mentions(player_name, session, instagram_handle, max_items=ig_limit),
         )
 
     # Telegram
@@ -309,8 +352,8 @@ async def scrape_all_social(player_name, twitter_handle=None, club=None, limit_m
     async with aiohttp.ClientSession() as session:
         web_results = await scrape_google_web(player_name, session, club)
 
-    total = twitter + reddit + youtube + tiktok + telegram + web_results
-    log.info(f"[social] Total menciones (pre-filter): {len(total)} (Twitter={len(twitter)}, Reddit={len(reddit)}, YouTube={len(youtube)}, TikTok={len(tiktok)}, Telegram={len(telegram)}, Web={len(web_results)})")
+    total = twitter + reddit + youtube + tiktok + ig_mentions + telegram + web_results
+    log.info(f"[social] Total menciones (pre-filter): {len(total)} (Twitter={len(twitter)}, Reddit={len(reddit)}, YouTube={len(youtube)}, TikTok={len(tiktok)}, IG={len(ig_mentions)}, Telegram={len(telegram)}, Web={len(web_results)})")
 
     # Post-scrape relevance filter: remove items that don't mention the player
     total = _filter_by_relevance(total, player_name)

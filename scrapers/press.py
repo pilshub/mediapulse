@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from config import SPANISH_PRESS_FEEDS, GOOGLE_NEWS_RSS, MAX_RSS_ITEMS, PRESS_SITE_SEARCH
+from config import SPANISH_PRESS_FEEDS, GOOGLE_NEWS_RSS, GOOGLE_NEWS_RSS_INTL, MAX_RSS_ITEMS, PRESS_SITE_SEARCH
 
 log = logging.getLogger("agentradar")
 
@@ -44,14 +44,62 @@ async def _fetch_google_rss(session, query, source_label, limit=MAX_RSS_ITEMS):
 
 
 async def scrape_google_news(player_name, session, club=None):
-    """Generic Google News search for the player."""
+    """Google News search in Spanish + international languages."""
     quoted = f'"{player_name}"'
-    items = await _fetch_google_rss(session, f'{quoted}+futbol', "Google News")
 
+    # Spanish (main)
+    tasks = [
+        _fetch_google_rss(session, f'{quoted}+futbol', "Google News"),
+    ]
     if club:
-        club_items = await _fetch_google_rss(session, f'{quoted}+"{club}"', "Google News")
-        items.extend(club_items)
+        tasks.append(_fetch_google_rss(session, f'{quoted}+"{club}"', "Google News"))
 
+    # International searches (EN, IT, AR, FR, DE)
+    intl_queries = {
+        "en": [f'{quoted}+football', f'{quoted}+soccer'],
+        "it": [f'{quoted}+calcio'],
+        "ar": [f'{quoted}+كرة+القدم'],
+        "fr": [f'{quoted}+football'],
+        "de": [f'{quoted}+fussball'],
+    }
+    if club:
+        for lang in intl_queries:
+            intl_queries[lang].append(f'{quoted}+"{club}"')
+
+    for lang, queries in intl_queries.items():
+        rss_template = GOOGLE_NEWS_RSS_INTL.get(lang)
+        if not rss_template:
+            continue
+        for q in queries:
+            tasks.append(_fetch_google_rss_intl(session, q, f"Google News ({lang.upper()})", rss_template))
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    items = []
+    for r in results:
+        if isinstance(r, list):
+            items.extend(r)
+    return items
+
+
+async def _fetch_google_rss_intl(session, query, source_label, rss_template, limit=MAX_RSS_ITEMS):
+    """Fetch international Google News RSS."""
+    url = rss_template.format(query=query.replace(" ", "+"))
+    items = []
+    try:
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            if resp.status == 200:
+                text = await resp.text()
+                feed = feedparser.parse(text)
+                for entry in feed.entries[:limit]:
+                    items.append({
+                        "source": source_label,
+                        "title": entry.get("title", ""),
+                        "url": entry.get("link", ""),
+                        "summary": entry.get("summary", "")[:500],
+                        "published_at": _parse_date(entry),
+                    })
+    except Exception as e:
+        log.error(f"[press] {source_label} RSS error: {e}")
     return items
 
 

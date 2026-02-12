@@ -27,6 +27,8 @@ async def scrape_youtube(player_name, session=None):
         f'"{player_name}" goles',
         f'"{player_name}" football',
         f'"{player_name}" goals highlights',
+        f'"{player_name}" calcio',
+        f'"{player_name}" كرة القدم',
     ]
 
     headers = {

@@ -10,7 +10,7 @@ from scrapers.press import scrape_all_press
 from scrapers.social import scrape_all_social
 from scrapers.player import scrape_all_player_posts
 from scrapers.trends import scrape_google_trends
-from analyzer import analyze_batch, generate_executive_summary, extract_topics_and_brands, generate_intelligence_report
+from analyzer import analyze_batch, analyze_images, generate_executive_summary, extract_topics_and_brands, generate_intelligence_report
 
 log = logging.getLogger("agentradar")
 
@@ -75,7 +75,7 @@ async def run_scan(player_data: dict, update_status=True):
         if update_status:
             scan_status["progress"] = f"{progress_prefix}Prensa: {len(press_items)} noticias. Escaneando redes sociales..."
         try:
-            social_items = await scrape_all_social(name, twitter, club, limit_multiplier=scan_multiplier)
+            social_items = await scrape_all_social(name, twitter, club, limit_multiplier=scan_multiplier, instagram_handle=instagram)
         except Exception as e:
             log.error(f"Social scraper EXCEPTION: {e}", exc_info=True)
             social_items = []
@@ -155,6 +155,12 @@ async def run_scan(player_data: dict, update_status=True):
                 analyze_batch(social_new, player_name=name, club=club or ""),
                 analyze_batch(player_new, player_name=name, club=club or ""),
             )
+
+        # Analyze images from player posts with GPT-4o Vision
+        if player_new:
+            if update_status:
+                scan_status["progress"] = "Analizando imagenes con Vision..."
+            player_new = await analyze_images(player_new, player_name=name, max_images=10)
 
         # Extract aggregated topics and brands
         all_items = press_new + social_new + player_new

@@ -972,15 +972,17 @@ async def calculate_image_index(player_id):
 
     Components (weights from config):
     - volume (20%): log-normalized total items count
-    - press_sentiment (25%): (-1..+1) → (0..100)
-    - social_sentiment (25%): (-1..+1) → (0..100)
+    - press_sentiment (25%): weighted by source credibility (-1..+1) → (0..100)
+    - social_sentiment (25%): weighted by platform credibility (-1..+1) → (0..100)
     - engagement (15%): normalized engagement rate
-    - no_controversy (15%): 100 - negative_ratio * 100
+    - no_controversy (15%): 100 - weighted_negative_ratio * 100
     """
     import math
-    from config import IMAGE_INDEX_WEIGHTS as W
+    from config import IMAGE_INDEX_WEIGHTS as W, SOURCE_WEIGHTS, DEFAULT_SOURCE_WEIGHT
 
     async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+
         # Total items
         pc = (await (await conn.execute(
             "SELECT COUNT(*) FROM press_items WHERE player_id = ?", (player_id,)
@@ -993,18 +995,40 @@ async def calculate_image_index(player_id):
         # Volume score: log scale, 100 items = ~100, 1 item = ~0
         volume_score = min(100, (math.log10(max(total, 1)) / math.log10(100)) * 100)
 
-        # Press sentiment
-        ps = (await (await conn.execute(
-            "SELECT AVG(sentiment) FROM press_items WHERE player_id = ? AND sentiment IS NOT NULL",
-            (player_id,)
-        )).fetchone())[0]
+        # Press sentiment - weighted by source credibility
+        cursor = await conn.execute(
+            "SELECT source, sentiment FROM press_items WHERE player_id = ? AND sentiment IS NOT NULL",
+            (player_id,),
+        )
+        press_rows = await cursor.fetchall()
+        if press_rows:
+            weighted_sum = 0.0
+            weight_total = 0.0
+            for r in press_rows:
+                w = SOURCE_WEIGHTS.get(r["source"], DEFAULT_SOURCE_WEIGHT)
+                weighted_sum += r["sentiment"] * w
+                weight_total += w
+            ps = weighted_sum / weight_total if weight_total > 0 else 0
+        else:
+            ps = None
         press_score = ((ps + 1) / 2) * 100 if ps is not None else 50
 
-        # Social sentiment
-        ss = (await (await conn.execute(
-            "SELECT AVG(sentiment) FROM social_mentions WHERE player_id = ? AND sentiment IS NOT NULL",
-            (player_id,)
-        )).fetchone())[0]
+        # Social sentiment - weighted by platform credibility
+        cursor = await conn.execute(
+            "SELECT platform, sentiment FROM social_mentions WHERE player_id = ? AND sentiment IS NOT NULL",
+            (player_id,),
+        )
+        social_rows = await cursor.fetchall()
+        if social_rows:
+            weighted_sum = 0.0
+            weight_total = 0.0
+            for r in social_rows:
+                w = SOURCE_WEIGHTS.get(r["platform"], DEFAULT_SOURCE_WEIGHT)
+                weighted_sum += r["sentiment"] * w
+                weight_total += w
+            ss = weighted_sum / weight_total if weight_total > 0 else 0
+        else:
+            ss = None
         social_score = ((ss + 1) / 2) * 100 if ss is not None else 50
 
         # Engagement
@@ -1015,22 +1039,32 @@ async def calculate_image_index(player_id):
         # Normalize: 5% engagement = 100, 0% = 0
         engagement_score = min(100, (eng / 0.05) * 100) if eng else 50
 
-        # Absence of controversy (negative ratio in all items)
-        neg_count = 0
-        total_sent = 0
-        for table in ["press_items", "social_mentions"]:
-            row = await (await conn.execute(
-                f"SELECT COUNT(*) FROM {table} WHERE player_id = ? AND sentiment_label = 'negativo'",
-                (player_id,)
-            )).fetchone()
-            neg_count += row[0]
-            row2 = await (await conn.execute(
-                f"SELECT COUNT(*) FROM {table} WHERE player_id = ? AND sentiment_label IS NOT NULL",
-                (player_id,)
-            )).fetchone()
-            total_sent += row2[0]
+        # Absence of controversy - weighted by source credibility
+        cursor = await conn.execute(
+            "SELECT source, sentiment_label FROM press_items WHERE player_id = ? AND sentiment_label IS NOT NULL",
+            (player_id,),
+        )
+        press_sent_rows = await cursor.fetchall()
+        cursor = await conn.execute(
+            "SELECT platform, sentiment_label FROM social_mentions WHERE player_id = ? AND sentiment_label IS NOT NULL",
+            (player_id,),
+        )
+        social_sent_rows = await cursor.fetchall()
 
-        neg_ratio = neg_count / total_sent if total_sent > 0 else 0
+        neg_weight = 0.0
+        total_weight = 0.0
+        for r in press_sent_rows:
+            w = SOURCE_WEIGHTS.get(r["source"], DEFAULT_SOURCE_WEIGHT)
+            total_weight += w
+            if r["sentiment_label"] == "negativo":
+                neg_weight += w
+        for r in social_sent_rows:
+            w = SOURCE_WEIGHTS.get(r["platform"], DEFAULT_SOURCE_WEIGHT)
+            total_weight += w
+            if r["sentiment_label"] == "negativo":
+                neg_weight += w
+
+        neg_ratio = neg_weight / total_weight if total_weight > 0 else 0
         controversy_score = max(0, 100 - neg_ratio * 200)  # 50% neg = 0, 0% neg = 100
 
         # Weighted composite
