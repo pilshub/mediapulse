@@ -302,7 +302,14 @@ async def generate_intelligence_report(player_id, player_name, club, scan_log_id
 
     import db
 
-    lookback = (datetime.now() - timedelta(days=INTELLIGENCE_LOOKBACK_DAYS)).strftime("%Y-%m-%dT00:00:00")
+    # First check if there's already an intelligence report - if so, use standard lookback
+    # If no prior report exists, use all available items (wider window) for first analysis
+    prev_intel = await db.get_last_intelligence_report(player_id)
+    if prev_intel:
+        lookback = (datetime.now() - timedelta(days=INTELLIGENCE_LOOKBACK_DAYS)).strftime("%Y-%m-%dT00:00:00")
+    else:
+        lookback = None  # No date filter - use all items for first intelligence report
+
     half = INTELLIGENCE_MAX_INPUT_ITEMS // 2
 
     press = await db.get_press(player_id, limit=half, date_from=lookback)
@@ -333,8 +340,7 @@ async def generate_intelligence_report(player_id, player_name, club, scan_log_id
 
     digest = "\n".join(digest_lines[:INTELLIGENCE_MAX_INPUT_ITEMS])
 
-    # Get previous intelligence report for trend context
-    prev_intel = await db.get_last_intelligence_report(player_id)
+    # Build trend context from previous intelligence report (already fetched above)
     previous_context = ""
     if prev_intel and prev_intel.get("narrativas"):
         prev_narr = prev_intel["narrativas"][:5]
