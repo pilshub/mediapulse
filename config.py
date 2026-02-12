@@ -44,8 +44,28 @@ SPANISH_PRESS_FEEDS = {
     "Tuttosport": "https://www.tuttosport.com/rss/calcio.xml",
 }
 
-GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={query}+futbol&hl=es&gl=ES&ceid=ES:es"
+GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={query}&hl=es&gl=ES&ceid=ES:es"
 GOOGLE_ALERTS_RSS = "https://www.google.com/alerts/feeds/{alert_id}"
+
+# Site-specific search: Google News RSS with site: operator
+# Finds articles about the player on each newspaper's website directly
+PRESS_SITE_SEARCH = {
+    "Marca": "marca.com",
+    "AS": "as.com",
+    "Mundo Deportivo": "mundodeportivo.com",
+    "Sport": "sport.es",
+    "El Pais": "elpais.com",
+    "El Mundo": "elmundo.es",
+    "Relevo": "relevo.com",
+    "Estadio Deportivo": "estadiodeportivo.com",
+    "Diario de Sevilla": "diariodesevilla.es",
+    "ABC Sevilla": "sevilla.abc.es",
+    "La Voz del Sur": "lavozdelsur.es",
+    "El Desmarque": "eldesmarque.com",
+    "Fichajes.net": "fichajes.net",
+    "BeSoccer": "besoccer.com",
+    "Transfermarkt": "transfermarkt.es",
+}
 
 # YouTube (via Invidious public API - no key needed)
 INVIDIOUS_INSTANCES = [
