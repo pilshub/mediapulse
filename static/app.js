@@ -1714,20 +1714,7 @@ function escapeHtml(text) {
 
 // -- Init --
 (async function init() {
-    try {
-        const resp = await fetch('/api/player');
-        const player = await resp.json();
-        if (player && player.id) {
-            const summary = await fetch(`/api/summary?player_id=${player.id}`).then(r => r.json());
-            if (summary.press_count > 0 || summary.mentions_count > 0 || summary.posts_count > 0) {
-                currentPlayer = player;
-                await loadDashboard(player.id);
-                return;
-            }
-        }
-    } catch (e) {
-        console.log('No existing player, showing setup');
-    }
+    // Check if a scan is running
     try {
         const status = await fetch('/api/scan/status').then(r => r.json());
         if (status.running) {
@@ -1737,4 +1724,102 @@ function escapeHtml(text) {
             return;
         }
     } catch (e) {}
+
+    // Check if any player has scan data -> load dashboard
+    try {
+        const players = await fetch('/api/players').then(r => r.json());
+        if (players && players.length > 0) {
+            // Find first player with scan data
+            for (const p of players) {
+                try {
+                    const summary = await fetch(`/api/summary?player_id=${p.id}`).then(r => r.json());
+                    if (summary.press_count > 0 || summary.mentions_count > 0 || summary.posts_count > 0) {
+                        currentPlayer = p;
+                        await loadDashboard(p.id);
+                        return;
+                    }
+                } catch (e) {}
+            }
+            // Players exist but none scanned -> show portfolio/selector
+            document.getElementById('setup-panel').classList.add('hidden');
+            showPortfolioSelector(players);
+            return;
+        }
+    } catch (e) {
+        console.log('No existing players, showing setup');
+    }
+    // No players at all -> show setup panel
 })();
+
+// -- Portfolio selector (shown when players exist but none scanned) --
+function showPortfolioSelector(players) {
+    const container = document.getElementById('dashboard');
+    container.classList.remove('hidden');
+    container.innerHTML = `
+        <div class="max-w-2xl mx-auto mt-8 sm:mt-16">
+            <div class="text-center mb-6 sm:mb-8">
+                <img src="/static/logo.svg" alt="MediaPulse" class="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4">
+                <h2 class="text-xl sm:text-2xl font-bold text-white">Media<span class="text-accent">Pulse</span></h2>
+                <p class="text-gray-500 mt-2 text-sm">Selecciona un jugador para escanear</p>
+            </div>
+            <div class="space-y-2 sm:space-y-3">
+                ${players.map(p => {
+                    const initials = (p.name || '').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                    const photoHtml = p.photo_url
+                        ? `<img src="${p.photo_url}" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover border-2 border-gray-700">`
+                        : `<div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent text-sm font-bold border-2 border-gray-700">${initials}</div>`;
+                    const socials = [
+                        p.twitter ? `<span class="text-[#1d9bf0]">X</span> @${p.twitter}` : '',
+                        p.instagram ? `<span class="text-[#e1306c]">IG</span> @${p.instagram}` : '',
+                    ].filter(Boolean).join(' &middot; ');
+                    return `
+                    <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4 flex items-center gap-3 sm:gap-4 cursor-pointer hover:border-accent/50 transition group"
+                         onclick="selectAndScan(${JSON.stringify(p).replace(/"/g, '&quot;')})">
+                        ${photoHtml}
+                        <div class="flex-1 min-w-0">
+                            <div class="font-semibold text-white text-sm sm:text-base group-hover:text-accent transition">${p.name}</div>
+                            <div class="text-xs text-gray-500">${p.club || ''} ${p.market_value ? '| ' + p.market_value : ''}</div>
+                            ${socials ? `<div class="text-[10px] text-gray-600 mt-0.5">${socials}</div>` : ''}
+                        </div>
+                        <button class="bg-accent hover:bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition touch-target flex-shrink-0">
+                            Escanear
+                        </button>
+                    </div>`;
+                }).join('')}
+            </div>
+            <div class="mt-6 text-center">
+                <button onclick="document.getElementById('dashboard').classList.add('hidden'); document.getElementById('setup-panel').classList.remove('hidden');"
+                    class="text-sm text-gray-500 hover:text-accent transition">
+                    + Agregar otro jugador
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+async function selectAndScan(player) {
+    document.getElementById('dashboard').classList.add('hidden');
+    document.getElementById('scan-progress').classList.remove('hidden');
+    document.getElementById('scan-message').textContent = 'Iniciando escaneo de ' + player.name + '...';
+
+    const data = {
+        name: player.name,
+        twitter: player.twitter || null,
+        instagram: player.instagram || null,
+        club: player.club || null,
+        transfermarkt_id: player.transfermarkt_id || null,
+        tiktok: player.tiktok || null,
+    };
+
+    try {
+        const resp = await fetch('/api/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+        pollScanStatus();
+    } catch (e) {
+        document.getElementById('scan-message').textContent = 'Error: ' + e.message;
+    }
+}
