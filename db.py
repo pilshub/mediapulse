@@ -1005,8 +1005,12 @@ async def calculate_image_index(player_id):
             weighted_sum = 0.0
             weight_total = 0.0
             for r in press_rows:
+                try:
+                    sent = float(r["sentiment"])
+                except (TypeError, ValueError):
+                    continue
                 w = SOURCE_WEIGHTS.get(r["source"], DEFAULT_SOURCE_WEIGHT)
-                weighted_sum += r["sentiment"] * w
+                weighted_sum += sent * w
                 weight_total += w
             ps = weighted_sum / weight_total if weight_total > 0 else 0
         else:
@@ -1023,8 +1027,12 @@ async def calculate_image_index(player_id):
             weighted_sum = 0.0
             weight_total = 0.0
             for r in social_rows:
+                try:
+                    sent = float(r["sentiment"])
+                except (TypeError, ValueError):
+                    continue
                 w = SOURCE_WEIGHTS.get(r["platform"], DEFAULT_SOURCE_WEIGHT)
-                weighted_sum += r["sentiment"] * w
+                weighted_sum += sent * w
                 weight_total += w
             ss = weighted_sum / weight_total if weight_total > 0 else 0
         else:
