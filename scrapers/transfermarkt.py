@@ -1,7 +1,8 @@
-"""Transfermarkt profile scraper - market value, photo, contract."""
+"""Transfermarkt profile + performance stats scraper."""
 import re
 import aiohttp
 import logging
+from bs4 import BeautifulSoup
 
 log = logging.getLogger("agentradar")
 
@@ -72,4 +73,105 @@ async def scrape_transfermarkt_profile(tm_id):
 
     except Exception as e:
         log.error(f"[transfermarkt] Error scraping {tm_id}: {e}")
+        return None
+
+
+async def scrape_transfermarkt_stats(tm_id):
+    """Scrape current season performance stats from Transfermarkt.
+
+    Returns dict with: appearances, goals, assists, minutes, yellows, reds, season
+    """
+    if not tm_id:
+        return None
+
+    # plus/1 gives extended view with all columns
+    url = f"https://www.transfermarkt.com/x/leistungsdatendetails/spieler/{tm_id}/plus/1"
+
+    try:
+        async with aiohttp.ClientSession(headers=TM_HEADERS) as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=15),
+                                   allow_redirects=True) as resp:
+                if resp.status != 200:
+                    log.warning(f"[transfermarkt] Stats HTTP {resp.status} for {tm_id}")
+                    return None
+
+                html = await resp.text()
+                soup = BeautifulSoup(html, "lxml")
+
+                # Find the main stats table
+                tables = soup.find_all("div", class_="responsive-table")
+                if not tables:
+                    log.warning(f"[transfermarkt] No stats tables found for {tm_id}")
+                    return None
+
+                # Parse the footer/totals row which has aggregated stats
+                stats = {
+                    "appearances": 0, "goals": 0, "assists": 0,
+                    "minutes": 0, "yellows": 0, "reds": 0,
+                    "season": "", "competitions": [],
+                }
+
+                # Try to find the totals row (tfoot) in the first table
+                table = tables[0].find("table", class_="items")
+                if not table:
+                    log.warning(f"[transfermarkt] No items table for {tm_id}")
+                    return None
+
+                tfoot = table.find("tfoot")
+                if tfoot:
+                    cells = tfoot.find_all("td")
+                    # Totals row typically: label, in_squad, appearances, goals, assists, ...
+                    # Extract numbers from cells
+                    nums = []
+                    for cell in cells:
+                        text = cell.get_text(strip=True).replace(".", "").replace("'", "").replace(",", "")
+                        text = text.replace("-", "0")
+                        if text.isdigit():
+                            nums.append(int(text))
+                        else:
+                            nums.append(0)
+
+                    # Map numbers: typically [in_squad, appearances, goals, assists, ?, sub_in, sub_out, yellows, 2nd_yellow, reds, penalty_goals, minutes]
+                    if len(nums) >= 8:
+                        stats["appearances"] = nums[1] if len(nums) > 1 else 0
+                        stats["goals"] = nums[2] if len(nums) > 2 else 0
+                        stats["assists"] = nums[3] if len(nums) > 3 else 0
+                        stats["yellows"] = nums[7] if len(nums) > 7 else 0
+                        stats["reds"] = nums[9] if len(nums) > 9 else 0
+                        stats["minutes"] = nums[-1] if nums[-1] > 10 else 0  # minutes is last and largest
+
+                # Also parse individual rows for competition breakdown
+                tbody = table.find("tbody")
+                if tbody:
+                    rows = tbody.find_all("tr", class_=["odd", "even"])
+                    for row in rows:
+                        cells = row.find_all("td")
+                        if len(cells) >= 4:
+                            comp_link = cells[0].find("a")
+                            comp_name = comp_link.get_text(strip=True) if comp_link else cells[0].get_text(strip=True)
+                            if comp_name and comp_name not in ["", "-"]:
+                                # Get appearances from this competition
+                                app_text = cells[2].get_text(strip=True) if len(cells) > 2 else "0"
+                                goals_text = cells[3].get_text(strip=True) if len(cells) > 3 else "0"
+                                stats["competitions"].append({
+                                    "name": comp_name,
+                                    "appearances": int(app_text) if app_text.isdigit() else 0,
+                                    "goals": int(goals_text) if goals_text.isdigit() else 0,
+                                })
+
+                # Detect season from page
+                season_match = re.search(r'(?:Saison|Season)\s*(\d{2}/\d{2})', html)
+                if season_match:
+                    stats["season"] = season_match.group(1)
+
+                # If totals row failed, sum from individual rows
+                if stats["appearances"] == 0 and stats["competitions"]:
+                    stats["appearances"] = sum(c["appearances"] for c in stats["competitions"])
+                    stats["goals"] = sum(c["goals"] for c in stats["competitions"])
+
+                log.info(f"[transfermarkt] Stats for {tm_id}: {stats['appearances']} apps, {stats['goals']} goals, {stats['assists']} assists, {stats['minutes']} min")
+                return stats if stats["appearances"] > 0 else None
+
+    except Exception as e:
+        log.error(f"[transfermarkt] Stats error for {tm_id}: {e}")
         return None

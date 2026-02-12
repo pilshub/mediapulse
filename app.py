@@ -460,6 +460,8 @@ async def get_intelligence(player_id: int):
         return None
     narrativas = await db.get_narrativas_active(player_id)
     history = await db.get_intelligence_history(player_id, 10)
+    stats = await db.get_player_stats(player_id)
+    trends = await db.get_player_trends(player_id)
     # Extract resumen and recomendacion from raw_response
     raw = {}
     try:
@@ -475,9 +477,21 @@ async def get_intelligence(player_id: int):
         "narrativas": narrativas,
         "signals": report.get("signals", []),
         "risk_history": list(reversed(history)),
+        "stats": stats,
+        "trends": trends,
         "created_at": report.get("created_at"),
         "tokens_used": report.get("tokens_used"),
     }
+
+
+@app.get("/api/player/{player_id}/stats")
+async def get_player_stats(player_id: int):
+    return await db.get_player_stats(player_id)
+
+
+@app.get("/api/player/{player_id}/trends")
+async def get_player_trends(player_id: int):
+    return await db.get_player_trends(player_id)
 
 
 @app.get("/api/player/{player_id}/intelligence/history")

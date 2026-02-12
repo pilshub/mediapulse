@@ -9,6 +9,7 @@ from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, FIRST_SCAN_MULTIPLIER, 
 from scrapers.press import scrape_all_press
 from scrapers.social import scrape_all_social
 from scrapers.player import scrape_all_player_posts
+from scrapers.trends import scrape_google_trends
 from analyzer import analyze_batch, generate_executive_summary, extract_topics_and_brands, generate_intelligence_report
 
 log = logging.getLogger("agentradar")
@@ -61,9 +62,9 @@ async def run_scan(player_data: dict, update_status=True):
 
         # Scrape all sources with detailed progress
         log.info(f"Starting scrapers for {name} (twitter={twitter}, club={club})")
+        progress_prefix = "Escaneo profundo: " if is_first_scan else ""
 
         if update_status:
-            progress_prefix = "Escaneo profundo: " if is_first_scan else ""
             scan_status["progress"] = f"{progress_prefix}Escaneando prensa (Google News + RSS)..."
         try:
             press_items = await scrape_all_press(name, club, limit_multiplier=scan_multiplier)
@@ -88,9 +89,10 @@ async def run_scan(player_data: dict, update_status=True):
             player_items = []
 
         # Transfermarkt (if ID provided)
+        tm_stats = None
         if tm_id:
             try:
-                from scrapers.transfermarkt import scrape_transfermarkt_profile
+                from scrapers.transfermarkt import scrape_transfermarkt_profile, scrape_transfermarkt_stats
                 tm_data = await scrape_transfermarkt_profile(tm_id)
                 if tm_data:
                     await db.update_player_profile(
@@ -101,8 +103,25 @@ async def run_scan(player_data: dict, update_status=True):
                         nationality=tm_data.get("nationality"),
                         position=tm_data.get("position"),
                     )
+                # Scrape performance stats
+                tm_stats = await scrape_transfermarkt_stats(tm_id)
+                if tm_stats:
+                    await db.save_player_stats(player_id, tm_stats)
+                    log.info(f"Stats saved: {tm_stats.get('appearances', 0)} apps, {tm_stats.get('goals', 0)} goals")
             except Exception as e:
                 log.error(f"Transfermarkt scraper EXCEPTION: {e}", exc_info=True)
+
+        # Google Trends
+        trends_data = None
+        try:
+            if update_status:
+                scan_status["progress"] = f"{progress_prefix}Obteniendo Google Trends..."
+            trends_data = await scrape_google_trends(name)
+            if trends_data:
+                await db.save_player_trends(player_id, trends_data)
+                log.info(f"Trends saved: avg={trends_data.get('average_interest', 0)}, peak={trends_data.get('peak_interest', 0)}")
+        except Exception as e:
+            log.error(f"Google Trends EXCEPTION: {e}", exc_info=True)
 
         # Dedup - filter out items already in DB
         def _dedup(items):
@@ -185,7 +204,8 @@ async def run_scan(player_data: dict, update_status=True):
                 scan_status["progress"] = "Analizando inteligencia..."
             try:
                 intel_result = await generate_intelligence_report(
-                    player_id, name, club or "", scan_log_id
+                    player_id, name, club or "", scan_log_id,
+                    stats=tm_stats, trends=trends_data,
                 )
                 if intel_result:
                     # Only save if it has narrativas, or if no previous report exists

@@ -1206,6 +1206,80 @@ function renderInteligencia(intel) {
                 </div>
             </div>
 
+            <!-- Stats & Trends Row -->
+            ${intel.stats || intel.trends ? `
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                ${intel.stats ? `
+                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+                    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Rendimiento Deportivo ${intel.stats.season ? '(' + intel.stats.season + ')' : ''}</h3>
+                    <div class="grid grid-cols-3 gap-3 text-center">
+                        <div>
+                            <div class="text-lg font-bold text-white">${intel.stats.appearances || 0}</div>
+                            <div class="text-[10px] text-gray-500 uppercase">Partidos</div>
+                        </div>
+                        <div>
+                            <div class="text-lg font-bold text-green-400">${intel.stats.goals || 0}</div>
+                            <div class="text-[10px] text-gray-500 uppercase">Goles</div>
+                        </div>
+                        <div>
+                            <div class="text-lg font-bold text-blue-400">${intel.stats.assists || 0}</div>
+                            <div class="text-[10px] text-gray-500 uppercase">Asist.</div>
+                        </div>
+                        <div>
+                            <div class="text-lg font-bold text-gray-300">${intel.stats.minutes ? (intel.stats.minutes).toLocaleString() : 0}'</div>
+                            <div class="text-[10px] text-gray-500 uppercase">Minutos</div>
+                        </div>
+                        <div>
+                            <div class="text-lg font-bold text-yellow-400">${intel.stats.yellows || 0}</div>
+                            <div class="text-[10px] text-gray-500 uppercase">Amarillas</div>
+                        </div>
+                        <div>
+                            <div class="text-lg font-bold text-red-400">${intel.stats.reds || 0}</div>
+                            <div class="text-[10px] text-gray-500 uppercase">Rojas</div>
+                        </div>
+                    </div>
+                    ${intel.stats.competitions && intel.stats.competitions.length > 0 ? `
+                    <div class="mt-3 pt-3 border-t border-gray-800">
+                        ${intel.stats.competitions.map(c => `
+                            <div class="flex justify-between text-xs text-gray-400 mb-1">
+                                <span>${escapeHtml(c.name)}</span>
+                                <span class="text-white">${c.appearances} pj, ${c.goals} goles</span>
+                            </div>
+                        `).join('')}
+                    </div>` : ''}
+                </div>` : ''}
+                ${intel.trends ? `
+                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+                    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Google Trends (30 dias)</h3>
+                    <div class="grid grid-cols-3 gap-3 text-center mb-3">
+                        <div>
+                            <div class="text-lg font-bold text-white">${intel.trends.average_interest || 0}</div>
+                            <div class="text-[10px] text-gray-500 uppercase">Interes Medio</div>
+                        </div>
+                        <div>
+                            <div class="text-lg font-bold text-accent">${intel.trends.peak_interest || 0}</div>
+                            <div class="text-[10px] text-gray-500 uppercase">Pico</div>
+                        </div>
+                        <div>
+                            <div class="text-lg font-bold ${intel.trends.trend_direction === 'up' ? 'text-red-400' : intel.trends.trend_direction === 'down' ? 'text-green-400' : 'text-yellow-400'}">
+                                ${intel.trends.trend_direction === 'up' ? '&#9650; Subiendo' : intel.trends.trend_direction === 'down' ? '&#9660; Bajando' : '&#9654; Estable'}
+                            </div>
+                            <div class="text-[10px] text-gray-500 uppercase">Tendencia</div>
+                        </div>
+                    </div>
+                    ${intel.trends.timeline && intel.trends.timeline.length > 2 ? (() => {
+                        const vals = intel.trends.timeline.map(t => t.value);
+                        const mn = Math.min(...vals), mx = Math.max(...vals);
+                        const rng = (mx - mn) || 1;
+                        const sw = 260, sh = 50;
+                        const pts = vals.map((v, i) => (i / (vals.length - 1)) * sw + ',' + (sh - ((v - mn) / rng) * sh)).join(' ');
+                        const trendCol = intel.trends.trend_direction === 'up' ? '#f4212e' : intel.trends.trend_direction === 'down' ? '#00ba7c' : '#ffd166';
+                        return '<div class="flex justify-center"><svg width="' + sw + '" height="' + (sh+4) + '" class="overflow-visible"><polyline points="' + pts + '" fill="none" stroke="' + trendCol + '" stroke-width="2" stroke-linejoin="round"/><circle cx="' + sw + '" cy="' + (sh - ((vals[vals.length-1] - mn) / rng) * sh) + '" r="3" fill="' + trendCol + '"/></svg></div>';
+                    })() : ''}
+                    <div class="text-[10px] text-gray-600 text-center mt-1">${intel.trends.data_points || 0} puntos de datos</div>
+                </div>` : ''}
+            </div>` : ''}
+
             <!-- Narrativas -->
             ${narrativas.length > 0 ? `
             <div>

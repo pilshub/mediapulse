@@ -210,6 +210,36 @@ async def init_db():
             );
         """)
 
+        # Player stats table (Transfermarkt performance data)
+        await conn.executescript("""
+            CREATE TABLE IF NOT EXISTS player_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                player_id INTEGER NOT NULL,
+                season TEXT,
+                appearances INTEGER DEFAULT 0,
+                goals INTEGER DEFAULT 0,
+                assists INTEGER DEFAULT 0,
+                minutes INTEGER DEFAULT 0,
+                yellows INTEGER DEFAULT 0,
+                reds INTEGER DEFAULT 0,
+                competitions_json TEXT,
+                scraped_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY (player_id) REFERENCES players(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS player_trends (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                player_id INTEGER NOT NULL,
+                average_interest INTEGER DEFAULT 0,
+                peak_interest INTEGER DEFAULT 0,
+                trend_direction TEXT DEFAULT 'stable',
+                data_points INTEGER DEFAULT 0,
+                timeline_json TEXT,
+                scraped_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY (player_id) REFERENCES players(id)
+            );
+        """)
+
         # Weekly reports table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS weekly_reports (
@@ -1446,3 +1476,69 @@ async def get_portfolio_sparklines():
             result[pid] = list(reversed(rows))
 
     return result
+
+
+# ── Player Stats & Trends ──
+
+async def save_player_stats(player_id, stats):
+    """Save or update player performance stats for current season."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        # Delete old stats for this player (keep only latest)
+        await conn.execute("DELETE FROM player_stats WHERE player_id = ?", (player_id,))
+        await conn.execute(
+            """INSERT INTO player_stats (player_id, season, appearances, goals, assists,
+               minutes, yellows, reds, competitions_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (player_id, stats.get("season", ""), stats.get("appearances", 0),
+             stats.get("goals", 0), stats.get("assists", 0), stats.get("minutes", 0),
+             stats.get("yellows", 0), stats.get("reds", 0),
+             json.dumps(stats.get("competitions", []))),
+        )
+        await conn.commit()
+
+
+async def get_player_stats(player_id):
+    """Get latest performance stats for a player."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.execute(
+            "SELECT * FROM player_stats WHERE player_id = ? ORDER BY scraped_at DESC LIMIT 1",
+            (player_id,),
+        )
+        row = await cursor.fetchone()
+        if row:
+            r = dict(row)
+            r["competitions"] = json.loads(r.get("competitions_json") or "[]")
+            return r
+        return None
+
+
+async def save_player_trends(player_id, trends):
+    """Save Google Trends data for a player."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute("DELETE FROM player_trends WHERE player_id = ?", (player_id,))
+        await conn.execute(
+            """INSERT INTO player_trends (player_id, average_interest, peak_interest,
+               trend_direction, data_points, timeline_json)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (player_id, trends.get("average_interest", 0), trends.get("peak_interest", 0),
+             trends.get("trend_direction", "stable"), trends.get("data_points", 0),
+             json.dumps(trends.get("timeline", []))),
+        )
+        await conn.commit()
+
+
+async def get_player_trends(player_id):
+    """Get latest Google Trends data for a player."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.execute(
+            "SELECT * FROM player_trends WHERE player_id = ? ORDER BY scraped_at DESC LIMIT 1",
+            (player_id,),
+        )
+        row = await cursor.fetchone()
+        if row:
+            r = dict(row)
+            r["timeline"] = json.loads(r.get("timeline_json") or "[]")
+            return r
+        return None

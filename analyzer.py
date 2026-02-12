@@ -262,40 +262,53 @@ def extract_topics_and_brands(all_items):
 
 # ── Intelligence / Early Detection ──
 
-INTELLIGENCE_SYSTEM_PROMPT = """Eres un analista de inteligencia deportiva para una agencia de representacion de futbolistas.
-Analiza el digest de contenido mediatico sobre {player_name} ({club}) y agrupa los items en NARRATIVAS coherentes.
+INTELLIGENCE_SYSTEM_PROMPT = """Eres un analista de inteligencia deportiva SENIOR para la agencia de representacion Niagara Sur.
+Tu trabajo: analizar el digest mediatico de {player_name} ({club}) y producir un informe de inteligencia PRECISO y DIFERENCIADO.
 
 CATEGORIAS DE RIESGO (usa exactamente estos valores):
-- reputacion_personal: Vida privada, escandalos, relaciones, reality TV
-- legal: Problemas legales, investigaciones, sanciones
-- rendimiento: Bajada rendimiento, criticas deportivas
-- fichaje: Rumores de traspaso, interes de clubes
-- lesion: Lesiones, recuperacion, estado fisico
-- disciplina: Tarjetas, expulsiones, conflictos en equipo
-- comercial: Patrocinios, valor de marca
-- imagen_publica: Relacion con aficion, percepcion publica
+- reputacion_personal: Vida privada, escandalos, relaciones, reality TV, redes sociales polemicas
+- legal: Problemas legales, investigaciones, sanciones federativas
+- rendimiento: Bajada rendimiento, criticas deportivas, malas estadisticas
+- fichaje: Rumores traspaso, interes clubes, negociaciones contrato
+- lesion: Lesiones, recuperacion, parte medico, estado fisico
+- disciplina: Tarjetas, expulsiones, conflictos vestuario/entrenador
+- comercial: Patrocinios, valor de marca, acuerdos comerciales
+- imagen_publica: Relacion aficion, percepcion general, trending en redes
 
-SEVERIDAD (usa exactamente estos valores):
-- critico: Accion inmediata necesaria (escandalo viral, problema legal confirmado)
-- alto: Atencion esta semana (tendencia negativa creciente, rumor con fuentes fiables)
-- medio: Monitorizar de cerca (mencion aislada que podria crecer)
-- bajo: Informativo (neutral, sin riesgo real)
+SEVERIDAD:
+- critico: Escandalo viral activo, problema legal confirmado, lesion grave, polemica nacional (>10 items negativos sobre el tema)
+- alto: Tendencia negativa clara con multiples fuentes (5-10 items), rumor fichaje con fuentes fiables, lesion moderada
+- medio: Tema emergente (3-5 items), rumor sin confirmar, critica puntual en prensa importante
+- bajo: Informativo sin riesgo, noticias positivas o neutras, actividad rutinaria
 
-TENDENCIA: escalando, estable, declinando
+TENDENCIA: escalando (mas items recientes que antiguos), estable, declinando (menos items recientes)
 
+CALIBRACION DE RIESGO GLOBAL (0-100):
+- 0-20: Sin actividad relevante o todo positivo/neutro
+- 21-40: Actividad normal, algun tema menor a vigilar
+- 41-60: Temas activos que requieren atencion, mix positivo/negativo
+- 61-80: Problemas claros, multiples narrativas negativas, riesgo reputacional real
+- 81-100: Crisis activa, escandalo viral, accion inmediata necesaria
+
+IMPORTANTE: NO pongas 35 por defecto. Calcula el riesgo REAL basado en:
+- Proporcion de items negativos vs positivos
+- Gravedad de los temas (polemica personal > rumor fichaje neutro)
+- Volumen de cobertura (mas items = mas relevancia)
+- Diversidad de fuentes (si lo cubren prensa + redes = mas serio)
+{performance_context}
 REGLAS:
-1. Agrupa items que tratan del MISMO tema/historia en una narrativa
-2. Un item puede pertenecer a una sola narrativa
-3. Items sueltos sin relacion entre si que no forman narrativa = omitir o narrativa individual solo si es relevante
-4. Detecta SENALES TEMPRANAS: patrones que aun no son alertas pero podrian serlo
-5. Se conservador con severidad critico/alto - reservalo para evidencia clara
-6. Las recomendaciones deben ser ACCIONABLES y especificas para una agencia de representacion
+1. Agrupa items del MISMO tema/historia en una narrativa (minimo 2 items para formar narrativa)
+2. TODA narrativa debe incluir items especificos (P12, S45, etc.)
+3. Detecta SENALES TEMPRANAS: patrones sutiles que podrian crecer
+4. Las recomendaciones deben ser ACCIONABLES: "Preparar comunicado", "Contactar club", "Monitorizar 48h"
+5. Si hay items sobre fichaje + rendimiento, evalua si son oportunidad o riesgo
+6. Incluye narrativas POSITIVAS tambien (severidad "bajo"), no solo negativas
 {previous_context}
 Responde UNICAMENTE con JSON valido, sin texto extra:
-{{"narrativas":[{{"titulo":"string corto","descripcion":"2-3 frases resumen","categoria":"reputacion_personal","severidad":"medio","tendencia":"estable","items":["P12","S45"],"fuentes":["prensa","twitter"],"recomendacion":"Accion concreta"}}],"senales_tempranas":[{{"descripcion":"string","categoria":"rendimiento","evidencia":["S78"],"probabilidad":"media","accion_sugerida":"string"}}],"riesgo_global":35,"resumen_inteligencia":"2-3 frases situacion general","recomendacion_principal":"Una frase accionable"}}"""
+{{"narrativas":[{{"titulo":"string corto","descripcion":"2-3 frases resumen","categoria":"reputacion_personal","severidad":"medio","tendencia":"estable","items":["P12","S45"],"fuentes":["prensa","twitter"],"recomendacion":"Accion concreta"}}],"senales_tempranas":[{{"descripcion":"string","categoria":"rendimiento","evidencia":["S78"],"probabilidad":"media","accion_sugerida":"string"}}],"riesgo_global":45,"resumen_inteligencia":"2-3 frases situacion general","recomendacion_principal":"Una frase accionable"}}"""
 
 
-async def generate_intelligence_report(player_id, player_name, club, scan_log_id):
+async def generate_intelligence_report(player_id, player_name, club, scan_log_id, stats=None, trends=None):
     """Second-pass GPT-4o analysis: group items into narrativas, assess risk, detect signals."""
     if not client:
         return None
@@ -321,6 +334,11 @@ async def generate_intelligence_report(player_id, player_name, club, scan_log_id
         log.info(f"[intelligence] Skipping {player_name}: only {total_items} items")
         return None
 
+    # Count sentiment distribution for better calibration
+    neg_count = sum(1 for i in press + social if i.get('sentiment_label') == 'negativo')
+    pos_count = sum(1 for i in press + social if i.get('sentiment_label') == 'positivo')
+    total_analyzed = len(press) + len(social)
+
     # Build token-efficient digest: 1 line per item
     digest_lines = []
     for item in press:
@@ -340,7 +358,19 @@ async def generate_intelligence_report(player_id, player_name, club, scan_log_id
             f"A{item['id']}|{item.get('platform', '')}|{item.get('sentiment_label', 'neutro')}|{text}"
         )
 
-    digest = "\n".join(digest_lines[:INTELLIGENCE_MAX_INPUT_ITEMS])
+    # Add sentiment summary at the top of digest
+    digest_header = f"RESUMEN: {total_items} items totales. Sentimiento: {pos_count} positivos, {neg_count} negativos, {total_analyzed - pos_count - neg_count} neutros."
+    digest = digest_header + "\n" + "\n".join(digest_lines[:INTELLIGENCE_MAX_INPUT_ITEMS])
+
+    # Build performance context
+    performance_context = ""
+    if stats or trends:
+        perf_lines = []
+        if stats:
+            perf_lines.append(f"RENDIMIENTO DEPORTIVO (temporada actual): {stats.get('appearances', 0)} partidos, {stats.get('goals', 0)} goles, {stats.get('assists', 0)} asistencias, {stats.get('minutes', 0)} min, {stats.get('yellows', 0)} amarillas, {stats.get('reds', 0)} rojas")
+        if trends:
+            perf_lines.append(f"GOOGLE TRENDS (30 dias): interes medio={trends.get('average_interest', 0)}/100, pico={trends.get('peak_interest', 0)}/100, tendencia={'subiendo' if trends.get('trend_direction') == 'up' else 'bajando' if trends.get('trend_direction') == 'down' else 'estable'}")
+        performance_context = "\n" + "\n".join(perf_lines) + "\n"
 
     # Build trend context from previous intelligence report (already fetched above)
     previous_context = ""
@@ -352,6 +382,7 @@ async def generate_intelligence_report(player_id, player_name, club, scan_log_id
     system = INTELLIGENCE_SYSTEM_PROMPT.format(
         player_name=player_name, club=club or "desconocido",
         previous_context=previous_context,
+        performance_context=performance_context,
     )
 
     try:
