@@ -1335,14 +1335,25 @@ async def save_intelligence_report(player_id, scan_log_id, data):
 
 
 async def get_last_intelligence_report(player_id):
-    """Get most recent intelligence report for a player."""
+    """Get most recent intelligence report with content for a player.
+    Falls back to the latest report with narrativas if the most recent is empty."""
     async with aiosqlite.connect(DB_PATH) as conn:
         conn.row_factory = aiosqlite.Row
+        # Try latest report with narrativas first
         cursor = await conn.execute(
-            "SELECT * FROM intelligence_reports WHERE player_id = ? ORDER BY created_at DESC LIMIT 1",
+            """SELECT * FROM intelligence_reports WHERE player_id = ?
+               AND EXISTS (SELECT 1 FROM narrativas n WHERE n.intelligence_report_id = intelligence_reports.id)
+               ORDER BY created_at DESC LIMIT 1""",
             (player_id,),
         )
         row = await cursor.fetchone()
+        # Fall back to any latest report
+        if not row:
+            cursor = await conn.execute(
+                "SELECT * FROM intelligence_reports WHERE player_id = ? ORDER BY created_at DESC LIMIT 1",
+                (player_id,),
+            )
+            row = await cursor.fetchone()
         if row:
             r = dict(row)
             r["narrativas"] = json.loads(r.get("narrativas_json") or "[]")
@@ -1369,15 +1380,19 @@ async def get_intelligence_history(player_id, limit=10):
 
 
 async def get_narrativas_active(player_id, limit=20):
-    """Get most recent narrativas for a player, ordered by severity."""
+    """Get most recent narrativas for a player, ordered by severity.
+    Falls back to older reports if the latest has no narrativas."""
     severity_order = "CASE severidad WHEN 'critico' THEN 1 WHEN 'alto' THEN 2 WHEN 'medio' THEN 3 WHEN 'bajo' THEN 4 END"
     async with aiosqlite.connect(DB_PATH) as conn:
         conn.row_factory = aiosqlite.Row
+        # Find the latest report that actually has narrativas
         cursor = await conn.execute(
             f"""SELECT * FROM narrativas
                 WHERE player_id = ? AND intelligence_report_id = (
-                    SELECT id FROM intelligence_reports WHERE player_id = ?
-                    ORDER BY created_at DESC LIMIT 1
+                    SELECT ir.id FROM intelligence_reports ir
+                    WHERE ir.player_id = ?
+                    AND EXISTS (SELECT 1 FROM narrativas n WHERE n.intelligence_report_id = ir.id)
+                    ORDER BY ir.created_at DESC LIMIT 1
                 )
                 ORDER BY {severity_order}, num_items DESC
                 LIMIT ?""",

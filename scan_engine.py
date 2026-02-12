@@ -188,7 +188,13 @@ async def run_scan(player_data: dict, update_status=True):
                     player_id, name, club or "", scan_log_id
                 )
                 if intel_result:
-                    await db.save_intelligence_report(player_id, scan_log_id, intel_result)
+                    # Only save if it has narrativas, or if no previous report exists
+                    prev_report = await db.get_last_intelligence_report(player_id)
+                    has_narrativas = len(intel_result.get("narrativas", [])) > 0
+                    if has_narrativas or not prev_report:
+                        await db.save_intelligence_report(player_id, scan_log_id, intel_result)
+                    else:
+                        log.info(f"[intelligence] Keeping previous report for {name} (new report has 0 narrativas)")
             except Exception as e:
                 log.error(f"Intelligence analysis error: {e}", exc_info=True)
 
