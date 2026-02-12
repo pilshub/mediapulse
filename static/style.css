@@ -260,3 +260,68 @@ svg circle {
     opacity: 1 !important;
     transform: scale(1.1);
 }
+
+/* ===== RESPONSIVE / MOBILE ===== */
+
+/* Touch targets: minimum 44px for interactive elements */
+.touch-target {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Hide scrollbar on tabs (still scrollable) */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Mobile: < 640px */
+@media (max-width: 639px) {
+    /* Reduce base font on mobile slightly */
+    body { font-size: 14px; }
+
+    /* Compact summary cards */
+    #summary-cards .text-2xl { font-size: 1.25rem; }
+
+    /* Tabs touch-friendly */
+    .tab-btn { min-height: 40px; }
+
+    /* Date range buttons */
+    .date-range-btn { padding: 6px 14px; min-height: 36px; }
+    .filter-btn { padding: 6px 14px; min-height: 36px; }
+
+    /* Press/social items: tighter padding */
+    .item-list .card-hover { padding: 12px !important; }
+
+    /* Charts fill width */
+    canvas { max-height: 180px; }
+
+    /* Historial table: smaller text */
+    .scan-history-row td { padding: 8px 4px !important; font-size: 11px; }
+    .scan-history-row th { padding: 8px 4px !important; font-size: 10px; }
+
+    /* Image index components: wrap */
+    .image-index-components { grid-template-columns: repeat(3, 1fr) !important; }
+
+    /* Portfolio metrics grid */
+    .portfolio-metrics { grid-template-columns: repeat(2, 1fr) !important; }
+
+    /* Alerts filter: wrap */
+    .alerts-filter-bar { flex-wrap: wrap; gap: 4px; }
+
+    /* Word cloud smaller on mobile */
+    .word-cloud-item { font-size: 85% !important; }
+}
+
+/* Tablet: 640-1023px */
+@media (min-width: 640px) and (max-width: 1023px) {
+    /* Slightly reduce chart heights */
+    canvas { max-height: 220px; }
+}
+
+/* Safe area for notched phones */
+@supports (padding: env(safe-area-inset-bottom)) {
+    body { padding-bottom: env(safe-area-inset-bottom); }
+    header { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+}

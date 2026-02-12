@@ -415,11 +415,11 @@ function renderSummaryCards(s, delta) {
     ];
 
     document.getElementById('summary-cards').innerHTML = cards.map((c, i) => `
-        <div class="bg-dark-700 rounded-xl p-4 border border-gray-800 fade-in" style="animation-delay: ${i * 50}ms">
-            <div class="flex items-center justify-between mb-2">
-                <span class="text-xs text-gray-500 uppercase tracking-wider">${c.label}</span>
+        <div class="bg-dark-700 rounded-xl p-3 sm:p-4 border border-gray-800 fade-in" style="animation-delay: ${i * 50}ms">
+            <div class="flex items-center justify-between mb-1 sm:mb-2">
+                <span class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider">${c.label}</span>
             </div>
-            <div class="text-2xl font-bold text-white">${c.value ?? '-'}${c.delta}</div>
+            <div class="text-lg sm:text-2xl font-bold text-white">${c.value ?? '-'}${c.delta}</div>
         </div>
     `).join('');
 }
@@ -431,44 +431,44 @@ function renderPress(items, stats) {
     const sourcesDist = stats.press_sources || [];
 
     container.innerHTML = `
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div class="lg:col-span-2 order-2 lg:order-1">
                 <div class="bg-dark-700 rounded-xl border border-gray-800">
-                    <div class="p-4 border-b border-gray-800">
+                    <div class="p-3 sm:p-4 border-b border-gray-800">
                         <div class="flex items-center justify-between mb-2">
-                            <h3 class="font-semibold text-white">Noticias (${items.length})</h3>
-                            <button onclick="exportCSV('press')" class="text-xs text-accent hover:underline">CSV</button>
+                            <h3 class="font-semibold text-white text-sm sm:text-base">Noticias (${items.length})</h3>
+                            <button onclick="exportCSV('press')" class="text-xs text-accent hover:underline touch-target">CSV</button>
                         </div>
-                        <input type="text" placeholder="Buscar en noticias..." class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:border-accent focus:outline-none" oninput="filterList(this.value, 'press')">
+                        <input type="text" placeholder="Buscar en noticias..." class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-accent focus:outline-none" oninput="filterList(this.value, 'press')">
                     </div>
-                    <div class="item-list max-h-[600px] overflow-y-auto" id="press-list">
+                    <div class="item-list max-h-[500px] sm:max-h-[600px] overflow-y-auto" id="press-list">
                         ${items.length === 0 ? '<div class="p-8 text-center text-gray-600">Sin noticias</div>' :
                         items.map(item => `
-                            <div class="p-4 card-hover search-item" data-search="${escapeHtml((item.source || '') + ' ' + (item.title || '') + ' ' + (item.sentiment_label || '')).toLowerCase()}">
-                                <div class="flex items-start justify-between gap-3">
+                            <div class="p-3 sm:p-4 card-hover search-item" data-search="${escapeHtml((item.source || '') + ' ' + (item.title || '') + ' ' + (item.sentiment_label || '')).toLowerCase()}">
+                                <div class="flex items-start justify-between gap-2 sm:gap-3">
                                     <div class="flex-1 min-w-0">
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <span class="text-xs px-2 py-0.5 rounded-full bg-dark-500 text-gray-400">${item.source || ''}</span>
-                                            <span class="text-xs px-2 py-0.5 rounded-full badge-${item.sentiment_label || 'neutro'}">${item.sentiment_label || 'neutro'}</span>
+                                        <div class="flex items-center gap-1 sm:gap-2 mb-1 flex-wrap">
+                                            <span class="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-dark-500 text-gray-400">${item.source || ''}</span>
+                                            <span class="text-[10px] sm:text-xs px-2 py-0.5 rounded-full badge-${item.sentiment_label || 'neutro'}">${item.sentiment_label || 'neutro'}</span>
                                         </div>
-                                        <a href="${item.url}" target="_blank" class="text-sm text-white hover:text-accent transition line-clamp-2">${item.title}</a>
-                                        <div class="text-xs text-gray-600 mt-1">${formatDate(item.published_at)}</div>
+                                        <a href="${item.url}" target="_blank" class="text-xs sm:text-sm text-white hover:text-accent transition line-clamp-2">${item.title}</a>
+                                        <div class="text-[10px] sm:text-xs text-gray-600 mt-1">${formatDate(item.published_at)}</div>
                                     </div>
                                 </div>
                             </div>
                         `).join('')}
-                        ${items.length >= PAGE_SIZE ? `<div class="p-4 text-center"><button onclick="loadMorePress()" class="text-sm text-accent hover:underline">Cargar mas...</button></div>` : ''}
+                        ${items.length >= PAGE_SIZE ? `<div class="p-4 text-center"><button onclick="loadMorePress()" class="text-sm text-accent hover:underline touch-target">Cargar mas...</button></div>` : ''}
                     </div>
                 </div>
             </div>
-            <div class="space-y-4">
-                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+            <div class="space-y-3 sm:space-y-4 order-1 lg:order-2">
+                <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
                     <h4 class="text-sm font-semibold text-white mb-3">Sentimiento Prensa</h4>
-                    <canvas id="chart-press-sentiment" height="200"></canvas>
+                    <canvas id="chart-press-sentiment" height="180"></canvas>
                 </div>
-                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+                <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
                     <h4 class="text-sm font-semibold text-white mb-3">Fuentes</h4>
-                    <canvas id="chart-press-sources" height="200"></canvas>
+                    <canvas id="chart-press-sources" height="180"></canvas>
                 </div>
             </div>
         </div>
@@ -493,36 +493,36 @@ function renderSocial(items, stats, sentByPlatform, topInfluencers) {
     };
 
     container.innerHTML = `
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div class="lg:col-span-2 order-2 lg:order-1">
                 <div class="bg-dark-700 rounded-xl border border-gray-800">
-                    <div class="p-4 border-b border-gray-800">
+                    <div class="p-3 sm:p-4 border-b border-gray-800">
                         <div class="flex items-center justify-between mb-2">
-                            <h3 class="font-semibold text-white">Menciones en Redes (${items.length})</h3>
-                            <button onclick="exportCSV('social')" class="text-xs text-accent hover:underline">CSV</button>
+                            <h3 class="font-semibold text-white text-sm sm:text-base">Menciones (${items.length})</h3>
+                            <button onclick="exportCSV('social')" class="text-xs text-accent hover:underline touch-target">CSV</button>
                         </div>
-                        <input type="text" placeholder="Buscar en menciones..." class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:border-accent focus:outline-none mb-2" oninput="filterList(this.value, 'social')">
+                        <input type="text" placeholder="Buscar en menciones..." class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-accent focus:outline-none mb-2" oninput="filterList(this.value, 'social')">
                         <div class="flex gap-1 flex-wrap">
-                            <button onclick="filterPlatform(null)" class="platform-filter-btn active text-xs px-2 py-1 rounded-full border border-gray-700 text-gray-400" data-platform="all">Todas</button>
+                            <button onclick="filterPlatform(null)" class="platform-filter-btn active text-xs px-2 py-1.5 rounded-full border border-gray-700 text-gray-400 touch-target" data-platform="all">Todas</button>
                             ${['twitter','reddit','youtube','instagram','tiktok','telegram'].map(p => {
                                 const count = items.filter(i => i.platform === p).length;
-                                return count > 0 ? `<button onclick="filterPlatform('${p}')" class="platform-filter-btn text-xs px-2 py-1 rounded-full border border-gray-700" data-platform="${p}" style="color:${platformColors[p] || '#71767b'}">${platformIcon(p)} ${count}</button>` : '';
+                                return count > 0 ? `<button onclick="filterPlatform('${p}')" class="platform-filter-btn text-xs px-2 py-1.5 rounded-full border border-gray-700 touch-target" data-platform="${p}" style="color:${platformColors[p] || '#71767b'}">${platformIcon(p)} ${count}</button>` : '';
                             }).join('')}
                         </div>
                     </div>
-                    <div class="item-list max-h-[600px] overflow-y-auto" id="social-list">
+                    <div class="item-list max-h-[500px] sm:max-h-[600px] overflow-y-auto" id="social-list">
                         ${items.length === 0 ? '<div class="p-8 text-center text-gray-600">Sin menciones</div>' :
                         items.map(item => `
-                            <div class="p-4 card-hover search-item" data-search="${escapeHtml((item.author || '') + ' ' + (item.text || '') + ' ' + (item.platform || '')).toLowerCase()}">
-                                <div class="flex items-start gap-3">
-                                    <span class="text-lg platform-${item.platform}">${platformIcon(item.platform)}</span>
+                            <div class="p-3 sm:p-4 card-hover search-item" data-search="${escapeHtml((item.author || '') + ' ' + (item.text || '') + ' ' + (item.platform || '')).toLowerCase()}">
+                                <div class="flex items-start gap-2 sm:gap-3">
+                                    <span class="text-base sm:text-lg platform-${item.platform} flex-shrink-0">${platformIcon(item.platform)}</span>
                                     <div class="flex-1 min-w-0">
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <span class="text-xs font-medium text-gray-400">@${item.author || 'anon'}</span>
-                                            <span class="text-xs px-2 py-0.5 rounded-full badge-${item.sentiment_label || 'neutro'}">${item.sentiment_label || 'neutro'}</span>
+                                        <div class="flex items-center gap-1 sm:gap-2 mb-1 flex-wrap">
+                                            <span class="text-[10px] sm:text-xs font-medium text-gray-400">@${item.author || 'anon'}</span>
+                                            <span class="text-[10px] sm:text-xs px-2 py-0.5 rounded-full badge-${item.sentiment_label || 'neutro'}">${item.sentiment_label || 'neutro'}</span>
                                         </div>
-                                        <p class="text-sm text-gray-300 line-clamp-3">${escapeHtml(item.text || '')}</p>
-                                        <div class="flex items-center gap-4 mt-2 text-xs text-gray-600">
+                                        <p class="text-xs sm:text-sm text-gray-300 line-clamp-3">${escapeHtml(item.text || '')}</p>
+                                        <div class="flex items-center gap-2 sm:gap-4 mt-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
                                             <span>${fmtNum(item.likes)} ${item.platform === 'youtube' ? 'vistas' : 'me gusta'}</span>
                                             <span>${fmtNum(item.retweets)} ${item.platform === 'reddit' ? 'comentarios' : item.platform === 'youtube' ? '' : 'RT'}</span>
                                             <span>${formatDate(item.created_at)}</span>
@@ -535,17 +535,17 @@ function renderSocial(items, stats, sentByPlatform, topInfluencers) {
                     </div>
                 </div>
             </div>
-            <div class="space-y-4">
-                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+            <div class="space-y-3 sm:space-y-4 order-1 lg:order-2">
+                <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
                     <h4 class="text-sm font-semibold text-white mb-3">Sentimiento por Plataforma</h4>
-                    <canvas id="chart-sent-platform" height="200"></canvas>
+                    <canvas id="chart-sent-platform" height="180"></canvas>
                 </div>
-                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+                <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
                     <h4 class="text-sm font-semibold text-white mb-3">Sentimiento General</h4>
                     <canvas id="chart-social-sentiment" height="150"></canvas>
                 </div>
                 ${topInfluencers.length > 0 ? `
-                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+                <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
                     <h4 class="text-sm font-semibold text-white mb-3">Top Influencers</h4>
                     <div class="space-y-2">
                         ${topInfluencers.slice(0, 8).map((inf, i) => {
@@ -565,7 +565,7 @@ function renderSocial(items, stats, sentByPlatform, topInfluencers) {
                         }).join('')}
                     </div>
                 </div>` : ''}
-                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+                <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
                     <h4 class="text-sm font-semibold text-white mb-3">Por Plataforma</h4>
                     ${renderPlatformBreakdown(items)}
                 </div>
@@ -615,29 +615,29 @@ function renderActivity(items, stats, activityPeaks) {
     activityPeaks = activityPeaks || { hours: [], days: [] };
 
     container.innerHTML = `
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div class="lg:col-span-2 order-2 lg:order-1">
                 <div class="bg-dark-700 rounded-xl border border-gray-800">
-                    <div class="p-4 border-b border-gray-800">
+                    <div class="p-3 sm:p-4 border-b border-gray-800">
                         <div class="flex items-center justify-between mb-2">
-                            <h3 class="font-semibold text-white">Posts del Jugador (${items.length})</h3>
-                            <button onclick="exportCSV('activity')" class="text-xs text-accent hover:underline">CSV</button>
+                            <h3 class="font-semibold text-white text-sm sm:text-base">Posts del Jugador (${items.length})</h3>
+                            <button onclick="exportCSV('activity')" class="text-xs text-accent hover:underline touch-target">CSV</button>
                         </div>
-                        <input type="text" placeholder="Buscar en posts..." class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:border-accent focus:outline-none" oninput="filterList(this.value, 'activity')">
+                        <input type="text" placeholder="Buscar en posts..." class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-accent focus:outline-none" oninput="filterList(this.value, 'activity')">
                     </div>
-                    <div class="item-list max-h-[600px] overflow-y-auto" id="activity-list">
+                    <div class="item-list max-h-[500px] sm:max-h-[600px] overflow-y-auto" id="activity-list">
                         ${items.length === 0 ? '<div class="p-8 text-center text-gray-600">Sin posts</div>' :
                         items.map(item => `
-                            <div class="p-4 card-hover search-item" data-search="${escapeHtml((item.text || '') + ' ' + (item.platform || '') + ' ' + (item.media_type || '')).toLowerCase()}">
-                                <div class="flex items-start gap-3">
-                                    <span class="text-lg platform-${item.platform}">${platformIcon(item.platform)}</span>
+                            <div class="p-3 sm:p-4 card-hover search-item" data-search="${escapeHtml((item.text || '') + ' ' + (item.platform || '') + ' ' + (item.media_type || '')).toLowerCase()}">
+                                <div class="flex items-start gap-2 sm:gap-3">
+                                    <span class="text-base sm:text-lg platform-${item.platform} flex-shrink-0">${platformIcon(item.platform)}</span>
                                     <div class="flex-1 min-w-0">
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <span class="text-xs px-2 py-0.5 rounded-full bg-dark-500 text-gray-400">${item.media_type || 'text'}</span>
-                                            <span class="text-xs px-2 py-0.5 rounded-full badge-${item.sentiment_label || 'neutro'}">${item.sentiment_label || 'neutro'}</span>
+                                        <div class="flex items-center gap-1 sm:gap-2 mb-1 flex-wrap">
+                                            <span class="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-dark-500 text-gray-400">${item.media_type || 'text'}</span>
+                                            <span class="text-[10px] sm:text-xs px-2 py-0.5 rounded-full badge-${item.sentiment_label || 'neutro'}">${item.sentiment_label || 'neutro'}</span>
                                         </div>
-                                        <p class="text-sm text-gray-300 line-clamp-3">${escapeHtml(item.text || '')}</p>
-                                        <div class="flex items-center gap-4 mt-2 text-xs text-gray-600">
+                                        <p class="text-xs sm:text-sm text-gray-300 line-clamp-3">${escapeHtml(item.text || '')}</p>
+                                        <div class="flex items-center gap-2 sm:gap-4 mt-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
                                             <span>${fmtNum(item.likes)} me gusta</span>
                                             <span>${fmtNum(item.comments)} comentarios</span>
                                             <span>${fmtNum(item.shares)} compartidos</span>
@@ -652,7 +652,7 @@ function renderActivity(items, stats, activityPeaks) {
                     </div>
                 </div>
             </div>
-            <div class="space-y-4">
+            <div class="space-y-3 sm:space-y-4 order-1 lg:order-2">
                 ${activityPeaks.hours?.length ? `
                 <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
                     <h4 class="text-sm font-semibold text-white mb-3">Horas de Publicacion</h4>
@@ -748,15 +748,15 @@ function renderAlerts(items) {
 
     container.innerHTML = `
         <div class="bg-dark-700 rounded-xl border border-gray-800">
-            <div class="p-4 border-b border-gray-800">
-                <div class="flex items-center justify-between">
-                    <h3 class="font-semibold text-white">Alertas (${filtered.length})</h3>
-                    <div class="flex items-center gap-2">
-                        <button onclick="toggleAlertFilter('unread')" class="filter-btn ${alertFilter.unread ? 'active' : ''}">No leidas</button>
+            <div class="p-3 sm:p-4 border-b border-gray-800">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <h3 class="font-semibold text-white text-sm sm:text-base">Alertas (${filtered.length})</h3>
+                    <div class="flex items-center gap-1 sm:gap-2 flex-wrap alerts-filter-bar">
+                        <button onclick="toggleAlertFilter('unread')" class="filter-btn touch-target ${alertFilter.unread ? 'active' : ''}">No leidas</button>
                         ${severities.map(s => `
-                            <button onclick="toggleAlertFilter('${s}')" class="filter-btn ${alertFilter.severity === s ? 'active' : ''}">${s}</button>
+                            <button onclick="toggleAlertFilter('${s}')" class="filter-btn touch-target ${alertFilter.severity === s ? 'active' : ''}">${s}</button>
                         `).join('')}
-                        ${alertFilter.severity || alertFilter.unread ? '<button onclick="clearAlertFilters()" class="filter-btn text-red-400">Limpiar</button>' : ''}
+                        ${alertFilter.severity || alertFilter.unread ? '<button onclick="clearAlertFilters()" class="filter-btn touch-target text-red-400">Limpiar</button>' : ''}
                     </div>
                 </div>
             </div>
@@ -843,23 +843,23 @@ function renderHistorial(scans) {
 
     container.innerHTML = `
         <div class="bg-dark-700 rounded-xl border border-gray-800">
-            <div class="p-4 border-b border-gray-800 flex items-center justify-between">
-                <h3 class="font-semibold text-white">Historial de Escaneos (${scans.length})</h3>
-                <button id="compare-btn" onclick="runComparison()" class="text-sm bg-accent text-white px-3 py-1 rounded-lg" style="display:none">Comparar</button>
+            <div class="p-3 sm:p-4 border-b border-gray-800 flex items-center justify-between">
+                <h3 class="font-semibold text-white text-sm sm:text-base">Historial (${scans.length})</h3>
+                <button id="compare-btn" onclick="runComparison()" class="text-sm bg-accent text-white px-3 py-1 rounded-lg touch-target" style="display:none">Comparar</button>
             </div>
             ${scans.length === 0 ? '<div class="p-8 text-center text-gray-600">Sin escaneos previos</div>' : `
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
+            <div class="overflow-x-auto -mx-px">
+                <table class="w-full text-xs sm:text-sm min-w-[500px]">
                     <thead>
-                        <tr class="text-left text-xs text-gray-500 uppercase tracking-wider border-b border-gray-800">
-                            <th class="p-3 w-8">Comp</th>
-                            <th class="p-3">Fecha</th>
-                            <th class="p-3">Estado</th>
-                            <th class="p-3 text-center">Prensa</th>
-                            <th class="p-3 text-center">Menciones</th>
-                            <th class="p-3 text-center">Posts</th>
-                            <th class="p-3 text-center">Alertas</th>
-                            <th class="p-3">Duracion</th>
+                        <tr class="text-left text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider border-b border-gray-800">
+                            <th class="p-2 sm:p-3 w-8">Comp</th>
+                            <th class="p-2 sm:p-3">Fecha</th>
+                            <th class="p-2 sm:p-3">Estado</th>
+                            <th class="p-2 sm:p-3 text-center">Prensa</th>
+                            <th class="p-2 sm:p-3 text-center">Menciones</th>
+                            <th class="p-2 sm:p-3 text-center">Posts</th>
+                            <th class="p-2 sm:p-3 text-center">Alertas</th>
+                            <th class="p-2 sm:p-3 hidden sm:table-cell">Duracion</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -871,14 +871,14 @@ function renderHistorial(scans) {
                                 scan.status === 'running' ? 'text-accent' : 'text-red-400';
                             return `
                             <tr class="scan-history-row border-b border-gray-800/50">
-                                <td class="p-3"><input type="checkbox" class="compare-checkbox" value="${scan.id}" onchange="toggleCompare(${scan.id})" ${compareSelection.includes(scan.id) ? 'checked' : ''}></td>
-                                <td class="p-3 text-gray-300">${formatDateTime(scan.started_at)}</td>
-                                <td class="p-3 ${statusColor}">${scan.status || '-'}</td>
-                                <td class="p-3 text-center text-white font-medium">${scan.press_count || 0}</td>
-                                <td class="p-3 text-center text-white font-medium">${scan.mentions_count || 0}</td>
-                                <td class="p-3 text-center text-white font-medium">${scan.posts_count || 0}</td>
-                                <td class="p-3 text-center text-white font-medium">${scan.alerts_count || 0}</td>
-                                <td class="p-3 text-gray-500">${duration}</td>
+                                <td class="p-2 sm:p-3"><input type="checkbox" class="compare-checkbox w-4 h-4" value="${scan.id}" onchange="toggleCompare(${scan.id})" ${compareSelection.includes(scan.id) ? 'checked' : ''}></td>
+                                <td class="p-2 sm:p-3 text-gray-300">${formatDateTime(scan.started_at)}</td>
+                                <td class="p-2 sm:p-3 ${statusColor}">${scan.status || '-'}</td>
+                                <td class="p-2 sm:p-3 text-center text-white font-medium">${scan.press_count || 0}</td>
+                                <td class="p-2 sm:p-3 text-center text-white font-medium">${scan.mentions_count || 0}</td>
+                                <td class="p-2 sm:p-3 text-center text-white font-medium">${scan.posts_count || 0}</td>
+                                <td class="p-2 sm:p-3 text-center text-white font-medium">${scan.alerts_count || 0}</td>
+                                <td class="p-2 sm:p-3 text-gray-500 hidden sm:table-cell">${duration}</td>
                             </tr>`;
                         }).join('')}
                     </tbody>
@@ -892,22 +892,22 @@ function renderHistorial(scans) {
 function renderHistorico(stats) {
     const container = document.getElementById('tab-historico');
     container.innerHTML = `
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
-                <h4 class="text-sm font-semibold text-white mb-3">Volumen Prensa (por dia)</h4>
-                <canvas id="chart-hist-press" height="200"></canvas>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
+            <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
+                <h4 class="text-xs sm:text-sm font-semibold text-white mb-3">Volumen Prensa</h4>
+                <canvas id="chart-hist-press" height="180"></canvas>
             </div>
-            <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
-                <h4 class="text-sm font-semibold text-white mb-3">Volumen Menciones (por dia)</h4>
-                <canvas id="chart-hist-mentions" height="200"></canvas>
+            <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
+                <h4 class="text-xs sm:text-sm font-semibold text-white mb-3">Volumen Menciones</h4>
+                <canvas id="chart-hist-mentions" height="180"></canvas>
             </div>
-            <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
-                <h4 class="text-sm font-semibold text-white mb-3">Sentimiento Prensa (por dia)</h4>
-                <canvas id="chart-hist-press-sent" height="200"></canvas>
+            <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
+                <h4 class="text-xs sm:text-sm font-semibold text-white mb-3">Sent. Prensa</h4>
+                <canvas id="chart-hist-press-sent" height="180"></canvas>
             </div>
-            <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
-                <h4 class="text-sm font-semibold text-white mb-3">Sentimiento Redes (por dia)</h4>
-                <canvas id="chart-hist-social-sent" height="200"></canvas>
+            <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
+                <h4 class="text-xs sm:text-sm font-semibold text-white mb-3">Sent. Redes</h4>
+                <canvas id="chart-hist-social-sent" height="180"></canvas>
             </div>
         </div>
     `;
@@ -1003,9 +1003,9 @@ function showComparisonModal(a, b) {
 
     const modal = document.createElement('div');
     modal.id = 'compare-modal';
-    modal.className = 'fixed inset-0 bg-black/60 z-50 flex items-center justify-center';
+    modal.className = 'fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center';
     modal.innerHTML = `
-        <div class="bg-dark-700 rounded-2xl p-6 border border-gray-800 w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
+        <div class="bg-dark-700 rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 border border-gray-800 w-full sm:max-w-lg sm:mx-4 max-h-[85vh] overflow-y-auto">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-bold text-white">Comparacion de Escaneos</h3>
                 <button onclick="document.getElementById('compare-modal').remove()" class="text-gray-500 hover:text-white text-xl">&times;</button>
@@ -1066,28 +1066,28 @@ function renderImageIndex(idx, history) {
     }
 
     card.innerHTML = `
-        <div class="bg-dark-700 rounded-xl border border-gray-800 p-5">
-            <div class="flex items-center gap-6">
+        <div class="bg-dark-700 rounded-xl border border-gray-800 p-4 sm:p-5">
+            <div class="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
                 <div class="text-center flex-shrink-0">
-                    <div class="relative w-24 h-24">
-                        <svg viewBox="0 0 100 100" class="w-24 h-24 transform -rotate-90">
+                    <div class="relative w-20 h-20 sm:w-24 sm:h-24">
+                        <svg viewBox="0 0 100 100" class="w-20 h-20 sm:w-24 sm:h-24 transform -rotate-90">
                             <circle cx="50" cy="50" r="42" fill="none" stroke="#222" stroke-width="8"/>
                             <circle cx="50" cy="50" r="42" fill="none" stroke="${color}" stroke-width="8"
                                 stroke-dasharray="${score * 2.64} 264" stroke-linecap="round"/>
                         </svg>
                         <div class="absolute inset-0 flex items-center justify-center">
-                            <span class="text-2xl font-bold" style="color:${color}">${score}</span>
+                            <span class="text-xl sm:text-2xl font-bold" style="color:${color}">${score}</span>
                         </div>
                     </div>
                     <div class="text-xs font-bold mt-1" style="color:${color}">${label}</div>
                     <div class="text-[10px] text-gray-600 uppercase tracking-wider">Indice de Imagen</div>
                 </div>
-                <div class="flex-1 grid grid-cols-5 gap-3">
+                <div class="flex-1 grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 image-index-components">
                     ${components.map(c => {
                         const cColor = c.value >= 70 ? '#00ba7c' : c.value >= 40 ? '#ffd166' : '#f4212e';
                         return `
                         <div class="text-center">
-                            <div class="text-lg font-bold" style="color:${cColor}">${Math.round(c.value)}</div>
+                            <div class="text-base sm:text-lg font-bold" style="color:${cColor}">${Math.round(c.value)}</div>
                             <div class="text-[10px] text-gray-500">${c.name}</div>
                             <div class="text-[9px] text-gray-700">${c.weight}</div>
                         </div>`;
@@ -1109,13 +1109,13 @@ function renderInforme(weeklyReports, imageIndex) {
     };
 
     container.innerHTML = `
-        <div class="space-y-4">
-            <div class="bg-dark-700 rounded-xl border border-gray-800 p-5">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="font-semibold text-white">Informe Semanal con Recomendaciones</h3>
+        <div class="space-y-3 sm:space-y-4">
+            <div class="bg-dark-700 rounded-xl border border-gray-800 p-4 sm:p-5">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                    <h3 class="font-semibold text-white text-sm sm:text-base">Informe Semanal</h3>
                     <div class="flex gap-2">
-                        ${weeklyReports.length > 0 ? `<button onclick="window.open('/api/player/${currentPlayerId}/weekly-report-pdf','_blank')" class="bg-dark-600 hover:bg-dark-500 text-gray-300 px-3 py-2 rounded-lg text-sm border border-gray-700">Descargar PDF</button>` : ''}
-                        <button onclick="generateWeeklyReport()" id="btn-gen-report" class="bg-accent hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                        ${weeklyReports.length > 0 ? `<button onclick="window.open('/api/player/${currentPlayerId}/weekly-report-pdf','_blank')" class="bg-dark-600 hover:bg-dark-500 text-gray-300 px-3 py-2 rounded-lg text-xs sm:text-sm border border-gray-700 touch-target">PDF</button>` : ''}
+                        <button onclick="generateWeeklyReport()" id="btn-gen-report" class="bg-accent hover:bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition touch-target flex-1 sm:flex-none">
                             Generar Informe
                         </button>
                     </div>
@@ -1225,43 +1225,43 @@ async function showPortfolio() {
             const lastScanAgo = p.last_scan?.finished_at ? timeAgo(p.last_scan.finished_at) : 'nunca';
 
             return `
-                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4 cursor-pointer hover:border-gray-600 transition card-hover" onclick="hidePortfolio(); loadDashboard(${p.id})">
+                <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4 cursor-pointer hover:border-gray-600 transition card-hover" onclick="hidePortfolio(); loadDashboard(${p.id})">
                     <div class="flex items-center gap-3 mb-3">
                         ${photoHtml}
                         <div class="flex-1 min-w-0">
-                            <div class="font-semibold text-white truncate">${p.name}</div>
-                            <div class="text-xs text-gray-500">${p.club || ''} ${p.market_value ? '| ' + p.market_value : ''}</div>
+                            <div class="font-semibold text-white truncate text-sm sm:text-base">${p.name}</div>
+                            <div class="text-[10px] sm:text-xs text-gray-500">${p.club || ''} ${p.market_value ? '| ' + p.market_value : ''}</div>
                         </div>
                         <div class="text-center flex-shrink-0">
-                            <div class="relative w-14 h-14">
-                                <svg viewBox="0 0 100 100" class="w-14 h-14 transform -rotate-90">
+                            <div class="relative w-12 h-12 sm:w-14 sm:h-14">
+                                <svg viewBox="0 0 100 100" class="w-12 h-12 sm:w-14 sm:h-14 transform -rotate-90">
                                     <circle cx="50" cy="50" r="42" fill="none" stroke="#222" stroke-width="8"/>
                                     <circle cx="50" cy="50" r="42" fill="none" stroke="${color}" stroke-width="8"
                                         stroke-dasharray="${idx * 2.64} 264" stroke-linecap="round"/>
                                 </svg>
                                 <div class="absolute inset-0 flex items-center justify-center">
-                                    <span class="text-sm font-bold" style="color:${color}">${Math.round(idx)}</span>
+                                    <span class="text-xs sm:text-sm font-bold" style="color:${color}">${Math.round(idx)}</span>
                                 </div>
                             </div>
                             <div class="text-[9px] font-bold" style="color:${color}">${label}</div>
                         </div>
                     </div>
-                    <div class="grid grid-cols-4 gap-2 text-center">
+                    <div class="grid grid-cols-4 gap-1 sm:gap-2 text-center portfolio-metrics">
                         <div>
-                            <div class="text-sm font-bold text-white">${s.press_count || 0}</div>
-                            <div class="text-[10px] text-gray-600">Prensa</div>
+                            <div class="text-xs sm:text-sm font-bold text-white">${s.press_count || 0}</div>
+                            <div class="text-[9px] sm:text-[10px] text-gray-600">Prensa</div>
                         </div>
                         <div>
-                            <div class="text-sm font-bold text-white">${s.mentions_count || 0}</div>
-                            <div class="text-[10px] text-gray-600">Menciones</div>
+                            <div class="text-xs sm:text-sm font-bold text-white">${s.mentions_count || 0}</div>
+                            <div class="text-[9px] sm:text-[10px] text-gray-600">Menciones</div>
                         </div>
                         <div>
-                            <div class="text-sm font-bold text-white">${s.posts_count || 0}</div>
-                            <div class="text-[10px] text-gray-600">Posts</div>
+                            <div class="text-xs sm:text-sm font-bold text-white">${s.posts_count || 0}</div>
+                            <div class="text-[9px] sm:text-[10px] text-gray-600">Posts</div>
                         </div>
                         <div>
-                            <div class="text-sm font-bold ${s.alerts_count > 0 ? 'text-red-400' : 'text-white'}">${s.alerts_count || 0}</div>
-                            <div class="text-[10px] text-gray-600">Alertas</div>
+                            <div class="text-xs sm:text-sm font-bold ${s.alerts_count > 0 ? 'text-red-400' : 'text-white'}">${s.alerts_count || 0}</div>
+                            <div class="text-[9px] sm:text-[10px] text-gray-600">Alertas</div>
                         </div>
                     </div>
                     ${sparkSvg ? `<div class="mt-2 flex justify-center">${sparkSvg}</div>` : ''}

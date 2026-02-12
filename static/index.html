@@ -33,69 +33,72 @@
 
     <!-- Header -->
     <header class="bg-dark-800 border-b border-gray-800 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <img src="/static/favicon.svg" alt="MediaPulse" class="w-8 h-8">
-                <h1 class="text-xl font-bold text-white">Media<span class="text-accent">Pulse</span></h1>
-                <div id="scheduler-indicator" class="hidden ml-3 flex items-center gap-1.5 text-xs text-gray-500">
-                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    <span id="scheduler-text">Auto</span>
+        <div class="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-3">
+            <!-- Top row: logo + player info + actions -->
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <img src="/static/favicon.svg" alt="MediaPulse" class="w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0">
+                    <h1 class="text-base sm:text-xl font-bold text-white whitespace-nowrap">Media<span class="text-accent">Pulse</span></h1>
+                    <div id="scheduler-indicator" class="hidden sm:flex items-center gap-1.5 text-xs text-gray-500">
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        <span id="scheduler-text">Auto</span>
+                    </div>
                 </div>
-            </div>
-            <div id="player-header" class="hidden flex items-center gap-4">
-                <div id="header-photo-container" class="hidden">
-                    <img id="header-photo" class="w-10 h-10 rounded-full object-cover border-2 border-accent" src="" alt="">
+                <div id="player-header" class="hidden flex items-center gap-2 sm:gap-4 min-w-0">
+                    <div id="header-photo-container" class="hidden flex-shrink-0">
+                        <img id="header-photo" class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border-2 border-accent" src="" alt="">
+                    </div>
+                    <div id="header-initials" class="hidden w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-accent flex items-center justify-center text-white font-bold text-xs sm:text-sm flex-shrink-0"></div>
+                    <div class="text-right min-w-0 hidden sm:block">
+                        <div id="header-name" class="font-semibold text-white cursor-pointer hover:text-accent text-sm sm:text-base truncate" onclick="showPlayerSwitcher()"></div>
+                        <div id="header-club" class="text-xs text-gray-500 truncate"></div>
+                    </div>
+                    <div id="header-tm-info" class="hidden text-right ml-1 sm:ml-2 pl-1 sm:pl-2 border-l border-gray-800">
+                        <div id="header-market-value" class="text-xs sm:text-sm font-bold text-green-400"></div>
+                        <div id="header-contract" class="text-xs text-gray-500 hidden sm:block"></div>
+                    </div>
                 </div>
-                <div id="header-initials" class="hidden w-10 h-10 rounded-full bg-accent flex items-center justify-center text-white font-bold text-sm"></div>
-                <div class="text-right">
-                    <div id="header-name" class="font-semibold text-white cursor-pointer hover:text-accent" onclick="showPlayerSwitcher()"></div>
-                    <div id="header-club" class="text-xs text-gray-500"></div>
+                <div class="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                    <button id="btn-portfolio" onclick="showPortfolio()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm transition hidden border border-gray-700 touch-target" title="Vista portfolio">
+                        <span class="hidden sm:inline">Portfolio</span><span class="sm:hidden">P</span>
+                    </button>
+                    <button id="btn-export" onclick="exportPDF()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm transition hidden border border-gray-700 touch-target" title="Descargar informe">
+                        PDF
+                    </button>
+                    <button id="btn-switch" onclick="showPlayerSwitcher()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-2 sm:px-3 py-2 rounded-lg text-xs sm:text-sm transition hidden border border-gray-700 touch-target" title="Cambiar jugador">
+                        +
+                    </button>
+                    <button id="btn-scan" onclick="startScan()" class="bg-accent hover:bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg font-medium text-xs sm:text-sm transition hidden touch-target">
+                        <span class="hidden sm:inline">Escanear</span><span class="sm:hidden">Scan</span>
+                    </button>
+                    <span id="cost-indicator" class="hidden text-[10px] text-gray-600 ml-1 cursor-help" title="Coste estimado de APIs"></span>
+                    <a href="/logout" class="text-gray-600 hover:text-gray-400 text-xs ml-1 sm:ml-2 transition touch-target p-1" title="Cerrar sesion">Salir</a>
                 </div>
-                <div id="header-tm-info" class="hidden text-right ml-2 pl-2 border-l border-gray-800">
-                    <div id="header-market-value" class="text-sm font-bold text-green-400"></div>
-                    <div id="header-contract" class="text-xs text-gray-500"></div>
-                </div>
-            </div>
-            <div class="flex items-center gap-2">
-                <button id="btn-portfolio" onclick="showPortfolio()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-3 py-2 rounded-lg text-sm transition hidden border border-gray-700" title="Vista portfolio">
-                    Portfolio
-                </button>
-                <button id="btn-export" onclick="exportPDF()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-3 py-2 rounded-lg text-sm transition hidden border border-gray-700" title="Descargar informe">
-                    PDF
-                </button>
-                <button id="btn-switch" onclick="showPlayerSwitcher()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-3 py-2 rounded-lg text-sm transition hidden border border-gray-700" title="Cambiar jugador">
-                    + Jugador
-                </button>
-                <button id="btn-scan" onclick="startScan()" class="bg-accent hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium text-sm transition hidden">
-                    Escanear
-                </button>
-                <span id="cost-indicator" class="hidden text-[10px] text-gray-600 ml-2 cursor-help" title="Coste estimado de APIs"></span>
-                <a href="/logout" class="text-gray-600 hover:text-gray-400 text-xs ml-2 transition" title="Cerrar sesion">Salir</a>
             </div>
         </div>
     </header>
 
     <!-- Player Switcher Modal -->
-    <div id="player-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
-        <div class="bg-dark-700 rounded-2xl p-6 border border-gray-800 w-full max-w-md mx-4">
+    <div id="player-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center">
+        <div class="bg-dark-700 rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 border border-gray-800 w-full sm:max-w-md sm:mx-4 max-h-[85vh] overflow-y-auto">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-bold text-white">Cambiar Jugador</h3>
-                <button onclick="hidePlayerSwitcher()" class="text-gray-500 hover:text-white text-xl">&times;</button>
+                <button onclick="hidePlayerSwitcher()" class="text-gray-500 hover:text-white text-2xl touch-target p-1">&times;</button>
             </div>
             <div id="player-list" class="space-y-2 mb-4 max-h-48 overflow-y-auto"></div>
             <div class="border-t border-gray-800 pt-4">
                 <p class="text-xs text-gray-500 mb-2">Nuevo jugador:</p>
-                <input id="modal-name" type="text" placeholder="Nombre" class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm mb-2 focus:border-accent focus:outline-none">
+                <input id="modal-name" type="text" placeholder="Nombre" class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-3 text-white text-sm mb-2 focus:border-accent focus:outline-none">
                 <div class="grid grid-cols-2 gap-2">
-                    <input id="modal-twitter" type="text" placeholder="Twitter" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-accent focus:outline-none">
-                    <input id="modal-instagram" type="text" placeholder="Instagram" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-accent focus:outline-none">
+                    <input id="modal-twitter" type="text" placeholder="Twitter" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-3 text-white text-sm focus:border-accent focus:outline-none">
+                    <input id="modal-instagram" type="text" placeholder="Instagram" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-3 text-white text-sm focus:border-accent focus:outline-none">
                 </div>
                 <div class="grid grid-cols-3 gap-2 mt-2">
-                    <input id="modal-club" type="text" placeholder="Club" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-accent focus:outline-none">
-                    <input id="modal-tm" type="text" placeholder="TM ID" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-accent focus:outline-none">
-                    <input id="modal-tiktok" type="text" placeholder="TikTok" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-accent focus:outline-none">
+                    <input id="modal-club" type="text" placeholder="Club" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-3 text-white text-sm focus:border-accent focus:outline-none">
+                    <input id="modal-tm" type="text" placeholder="TM ID" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-3 text-white text-sm focus:border-accent focus:outline-none">
+                    <input id="modal-tiktok" type="text" placeholder="TikTok" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-3 text-white text-sm focus:border-accent focus:outline-none">
                 </div>
-                <button onclick="addAndScanPlayer()" class="w-full bg-accent hover:bg-blue-600 text-white py-2 rounded-lg font-medium text-sm transition mt-3">
+                <button onclick="addAndScanPlayer()" class="w-full bg-accent hover:bg-blue-600 text-white py-3 rounded-lg font-medium text-sm transition mt-3 touch-target">
                     Escanear nuevo jugador
                 </button>
             </div>
@@ -162,64 +165,66 @@
     </div>
 
     <!-- Dashboard -->
-    <div id="dashboard" class="hidden max-w-7xl mx-auto px-4 py-6">
+    <div id="dashboard" class="hidden max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
 
         <!-- Executive Summary -->
-        <div id="executive-summary" class="bg-dark-700 rounded-xl border border-gray-800 p-5 mb-6 hidden">
+        <div id="executive-summary" class="bg-dark-700 rounded-xl border border-gray-800 p-4 sm:p-5 mb-4 sm:mb-6 hidden">
             <div class="flex items-center justify-between mb-2">
-                <h3 class="font-semibold text-white text-sm uppercase tracking-wider">Resumen Ejecutivo</h3>
+                <h3 class="font-semibold text-white text-xs sm:text-sm uppercase tracking-wider">Resumen Ejecutivo</h3>
                 <span class="text-xs text-gray-600" id="report-date"></span>
             </div>
-            <p id="exec-summary-text" class="text-sm text-gray-300 leading-relaxed"></p>
+            <p id="exec-summary-text" class="text-xs sm:text-sm text-gray-300 leading-relaxed"></p>
         </div>
 
         <!-- Summary Cards -->
-        <div id="summary-cards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+        <div id="summary-cards" class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6"></div>
 
         <!-- Topics + Brands Row -->
-        <div id="topics-brands-row" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 hidden">
-            <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+        <div id="topics-brands-row" class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6 hidden">
+            <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
                 <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Temas Detectados</h4>
-                <div id="topics-container" class="flex flex-wrap gap-2"></div>
+                <div id="topics-container" class="flex flex-wrap gap-1 sm:gap-2"></div>
             </div>
-            <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+            <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
                 <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Marcas Detectadas</h4>
-                <div id="brands-container" class="flex flex-wrap gap-2"></div>
+                <div id="brands-container" class="flex flex-wrap gap-1 sm:gap-2"></div>
             </div>
         </div>
 
         <!-- Image Index -->
-        <div id="image-index-card" class="hidden mb-6"></div>
+        <div id="image-index-card" class="hidden mb-4 sm:mb-6"></div>
 
         <!-- Global Search -->
-        <div class="relative mb-4">
-            <input type="text" id="global-search" placeholder="Buscar en todo el contenido..." class="w-full bg-dark-800 border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-accent focus:outline-none" oninput="debounceGlobalSearch(this.value)">
+        <div class="relative mb-3 sm:mb-4">
+            <input type="text" id="global-search" placeholder="Buscar en todo el contenido..." class="w-full bg-dark-800 border border-gray-800 rounded-xl px-3 sm:px-4 py-3 text-sm text-white focus:border-accent focus:outline-none" oninput="debounceGlobalSearch(this.value)">
             <div id="global-search-results" class="hidden absolute top-full left-0 right-0 mt-1 bg-dark-700 border border-gray-700 rounded-xl max-h-80 overflow-y-auto z-40 shadow-xl"></div>
         </div>
 
         <!-- Date Range Filter -->
-        <div id="date-range-bar" class="flex items-center gap-3 mb-4 bg-dark-800 rounded-xl p-3 border border-gray-800 flex-wrap">
+        <div id="date-range-bar" class="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4 bg-dark-800 rounded-xl p-2 sm:p-3 border border-gray-800">
             <span class="text-xs text-gray-500 uppercase tracking-wider">Periodo:</span>
-            <button onclick="setDateRange('7d')" data-range="7d" class="date-range-btn active">7 dias</button>
-            <button onclick="setDateRange('30d')" data-range="30d" class="date-range-btn">30 dias</button>
-            <button onclick="setDateRange('90d')" data-range="90d" class="date-range-btn">90 dias</button>
-            <button onclick="setDateRange('all')" data-range="all" class="date-range-btn">Todo</button>
-            <div class="ml-auto flex items-center gap-2">
-                <input type="date" id="date-from" class="bg-dark-900 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white focus:border-accent focus:outline-none" onchange="setDateRange('custom')">
+            <div class="flex gap-1 sm:gap-2 flex-wrap">
+                <button onclick="setDateRange('7d')" data-range="7d" class="date-range-btn active touch-target">7d</button>
+                <button onclick="setDateRange('30d')" data-range="30d" class="date-range-btn touch-target">30d</button>
+                <button onclick="setDateRange('90d')" data-range="90d" class="date-range-btn touch-target">90d</button>
+                <button onclick="setDateRange('all')" data-range="all" class="date-range-btn touch-target">Todo</button>
+            </div>
+            <div class="flex items-center gap-2 w-full sm:w-auto sm:ml-auto mt-1 sm:mt-0">
+                <input type="date" id="date-from" class="bg-dark-900 border border-gray-700 rounded-lg px-2 py-2 text-xs text-white focus:border-accent focus:outline-none flex-1 sm:flex-none" onchange="setDateRange('custom')">
                 <span class="text-gray-600 text-xs">a</span>
-                <input type="date" id="date-to" class="bg-dark-900 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white focus:border-accent focus:outline-none" onchange="setDateRange('custom')">
+                <input type="date" id="date-to" class="bg-dark-900 border border-gray-700 rounded-lg px-2 py-2 text-xs text-white focus:border-accent focus:outline-none flex-1 sm:flex-none" onchange="setDateRange('custom')">
             </div>
         </div>
 
         <!-- Tabs -->
-        <div class="flex gap-1 mb-6 bg-dark-800 rounded-xl p-1 overflow-x-auto">
-            <button onclick="switchTab('prensa')" data-tab="prensa" class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">Prensa</button>
-            <button onclick="switchTab('redes')" data-tab="redes" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">Redes</button>
-            <button onclick="switchTab('actividad')" data-tab="actividad" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">Su Actividad</button>
-            <button onclick="switchTab('alertas')" data-tab="alertas" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">Alertas <span id="alert-badge" class="hidden ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full"></span></button>
-            <button onclick="switchTab('historial')" data-tab="historial" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">Historial</button>
-            <button onclick="switchTab('historico')" data-tab="historico" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">Graficos</button>
-            <button onclick="switchTab('informe')" data-tab="informe" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">Informe</button>
+        <div class="flex gap-1 mb-4 sm:mb-6 bg-dark-800 rounded-xl p-1 overflow-x-auto scrollbar-hide -mx-3 sm:mx-0 px-3 sm:px-1">
+            <button onclick="switchTab('prensa')" data-tab="prensa" class="tab-btn active px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Prensa</button>
+            <button onclick="switchTab('redes')" data-tab="redes" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Redes</button>
+            <button onclick="switchTab('actividad')" data-tab="actividad" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Actividad</button>
+            <button onclick="switchTab('alertas')" data-tab="alertas" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Alertas <span id="alert-badge" class="hidden ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full"></span></button>
+            <button onclick="switchTab('historial')" data-tab="historial" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Historial</button>
+            <button onclick="switchTab('historico')" data-tab="historico" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Graficos</button>
+            <button onclick="switchTab('informe')" data-tab="informe" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Informe</button>
         </div>
 
         <!-- Tab Content -->
@@ -233,23 +238,23 @@
     </div>
 
     <!-- Portfolio View -->
-    <div id="portfolio-view" class="hidden max-w-7xl mx-auto px-4 py-6">
-        <div class="flex items-center justify-between mb-6">
-            <h2 class="text-2xl font-bold text-white">Portfolio de Jugadores</h2>
+    <div id="portfolio-view" class="hidden max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+        <div class="flex items-center justify-between mb-4 sm:mb-6">
+            <h2 class="text-lg sm:text-2xl font-bold text-white">Portfolio</h2>
             <div class="flex items-center gap-2">
-                <button id="btn-compare-players" onclick="showPlayerCompareModal()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-3 py-2 rounded-lg text-sm border border-gray-700">Comparar</button>
-                <button onclick="hidePortfolio()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-3 py-2 rounded-lg text-sm border border-gray-700">Volver</button>
+                <button id="btn-compare-players" onclick="showPlayerCompareModal()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-3 py-2 rounded-lg text-xs sm:text-sm border border-gray-700 touch-target">Comparar</button>
+                <button onclick="hidePortfolio()" class="bg-dark-700 hover:bg-dark-600 text-gray-300 px-3 py-2 rounded-lg text-xs sm:text-sm border border-gray-700 touch-target">Volver</button>
             </div>
         </div>
-        <div id="portfolio-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        <div id="portfolio-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4"></div>
     </div>
 
     <!-- Player Compare Modal -->
-    <div id="player-compare-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
-        <div class="bg-dark-700 rounded-2xl p-6 border border-gray-800 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+    <div id="player-compare-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center">
+        <div class="bg-dark-700 rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 border border-gray-800 w-full sm:max-w-4xl sm:mx-4 max-h-[90vh] overflow-y-auto">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-bold text-white">Comparativa de Jugadores</h3>
-                <button onclick="hidePlayerCompareModal()" class="text-gray-500 hover:text-white text-xl">&times;</button>
+                <h3 class="text-base sm:text-lg font-bold text-white">Comparativa de Jugadores</h3>
+                <button onclick="hidePlayerCompareModal()" class="text-gray-500 hover:text-white text-2xl touch-target p-1">&times;</button>
             </div>
             <div id="player-compare-content"></div>
         </div>
