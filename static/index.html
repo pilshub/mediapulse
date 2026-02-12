@@ -6,6 +6,12 @@
     <title>MediaPulse - OSINT Futbol</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#1d9bf0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/static/favicon.svg">
     <link rel="stylesheet" href="/static/style.css">
     <script>
         tailwind.config = {
@@ -29,7 +35,7 @@
     <header class="bg-dark-800 border-b border-gray-800 sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <div class="w-8 h-8 bg-accent rounded-lg flex items-center justify-center font-bold text-white text-sm">MP</div>
+                <img src="/static/favicon.svg" alt="MediaPulse" class="w-8 h-8">
                 <h1 class="text-xl font-bold text-white">Media<span class="text-accent">Pulse</span></h1>
                 <div id="scheduler-indicator" class="hidden ml-3 flex items-center gap-1.5 text-xs text-gray-500">
                     <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
@@ -63,6 +69,7 @@
                 <button id="btn-scan" onclick="startScan()" class="bg-accent hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium text-sm transition hidden">
                     Escanear
                 </button>
+                <span id="cost-indicator" class="hidden text-[10px] text-gray-600 ml-2 cursor-help" title="Coste estimado de APIs"></span>
                 <a href="/logout" class="text-gray-600 hover:text-gray-400 text-xs ml-2 transition" title="Cerrar sesion">Salir</a>
             </div>
         </div>
@@ -99,10 +106,8 @@
     <div id="setup-panel" class="max-w-lg mx-auto mt-20 p-6">
         <div class="bg-dark-700 rounded-2xl p-8 border border-gray-800">
             <div class="text-center mb-8">
-                <div class="w-16 h-16 bg-accent/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <div class="w-10 h-10 bg-accent rounded-xl flex items-center justify-center font-bold text-white">AR</div>
-                </div>
-                <h2 class="text-2xl font-bold text-white">AgentRadar</h2>
+                <img src="/static/logo.svg" alt="MediaPulse" class="w-16 h-16 mx-auto mb-4">
+                <h2 class="text-2xl font-bold text-white">Media<span class="text-accent">Pulse</span></h2>
                 <p class="text-gray-500 mt-2">Monitorizacion online de jugadores</p>
             </div>
             <div class="space-y-4">
@@ -185,6 +190,12 @@
 
         <!-- Image Index -->
         <div id="image-index-card" class="hidden mb-6"></div>
+
+        <!-- Global Search -->
+        <div class="relative mb-4">
+            <input type="text" id="global-search" placeholder="Buscar en todo el contenido..." class="w-full bg-dark-800 border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-accent focus:outline-none" oninput="debounceGlobalSearch(this.value)">
+            <div id="global-search-results" class="hidden absolute top-full left-0 right-0 mt-1 bg-dark-700 border border-gray-700 rounded-xl max-h-80 overflow-y-auto z-40 shadow-xl"></div>
+        </div>
 
         <!-- Date Range Filter -->
         <div id="date-range-bar" class="flex items-center gap-3 mb-4 bg-dark-800 rounded-xl p-3 border border-gray-800 flex-wrap">

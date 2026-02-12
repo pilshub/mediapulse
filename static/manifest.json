@@ -1,0 +1,17 @@
+{
+  "name": "MediaPulse - OSINT Futbol",
+  "short_name": "MediaPulse",
+  "description": "Plataforma de monitorizacion OSINT para jugadores de futbol",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#1d9bf0",
+  "icons": [
+    {
+      "src": "/static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

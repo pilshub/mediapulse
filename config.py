@@ -57,7 +57,7 @@ INVIDIOUS_INSTANCES = [
 MAX_YOUTUBE_RESULTS = 20
 
 # Reddit
-REDDIT_SUBREDDITS = ["soccer", "LaLiga", "futbol", "calcio", "SerieA", "football"]
+REDDIT_SUBREDDITS = ["soccer", "LaLiga", "futbol", "calcio", "SerieA", "football", "PremierLeague", "Bundesliga", "Ligue1"]
 
 # Limites scraping
 MAX_TWEETS_MENTIONS = 200

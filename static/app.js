@@ -1,4 +1,4 @@
-// AgentRadar Frontend v4
+// MediaPulse Frontend v5
 let currentPlayer = null;
 let currentPlayerId = null;
 let pollInterval = null;
@@ -203,6 +203,9 @@ async function loadDashboard(playerId) {
         }
     }
 
+    // Show loading skeletons
+    showSkeletons();
+
     // Reset pagination
     pagination = { press: 0, social: 0, activity: 0 };
 
@@ -218,9 +221,10 @@ async function loadDashboard(playerId) {
 
     const dp = buildDateParams();
 
-    // Load scheduler status + last scan
+    // Load scheduler status + last scan + costs
     loadSchedulerStatus();
     loadLastScan(playerId);
+    loadCosts();
 
     // Load all data in parallel
     const [summary, report, press, social, activity, alerts, stats, scans, imageIndex, weeklyReports,
@@ -250,10 +254,10 @@ async function loadDashboard(playerId) {
     if (unreadAlerts.length > 0) {
         badge.textContent = unreadAlerts.length;
         badge.classList.remove('hidden');
-        document.title = `(${unreadAlerts.length}) AgentRadar`;
+        document.title = `(${unreadAlerts.length}) MediaPulse`;
     } else {
         badge.classList.add('hidden');
-        document.title = 'AgentRadar';
+        document.title = 'MediaPulse';
     }
 
     // Render Image Index
@@ -307,6 +311,19 @@ async function loadLastScan(playerId) {
             const ago = timeAgo(scan.finished_at);
             txt.textContent = existing.includes('Auto') ? `${existing} | Ultimo: ${ago}` : `Ultimo: ${ago}`;
             indicator.classList.remove('hidden');
+        }
+    } catch (e) {}
+}
+
+// -- Cost Indicator --
+async function loadCosts() {
+    try {
+        const costs = await fetch('/api/costs').then(r => r.json());
+        const el = document.getElementById('cost-indicator');
+        if (el && costs) {
+            el.textContent = `$${costs.estimated_month_usd.toFixed(2)} este mes`;
+            el.title = `Total: $${costs.estimated_total_usd.toFixed(2)} | ${costs.total_scans} escaneos | ${costs.total_items} items`;
+            el.classList.remove('hidden');
         }
     } catch (e) {}
 }
@@ -484,7 +501,14 @@ function renderSocial(items, stats, sentByPlatform, topInfluencers) {
                             <h3 class="font-semibold text-white">Menciones en Redes (${items.length})</h3>
                             <button onclick="exportCSV('social')" class="text-xs text-accent hover:underline">CSV</button>
                         </div>
-                        <input type="text" placeholder="Buscar en menciones..." class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:border-accent focus:outline-none" oninput="filterList(this.value, 'social')">
+                        <input type="text" placeholder="Buscar en menciones..." class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:border-accent focus:outline-none mb-2" oninput="filterList(this.value, 'social')">
+                        <div class="flex gap-1 flex-wrap">
+                            <button onclick="filterPlatform(null)" class="platform-filter-btn active text-xs px-2 py-1 rounded-full border border-gray-700 text-gray-400" data-platform="all">Todas</button>
+                            ${['twitter','reddit','youtube','instagram','tiktok','telegram'].map(p => {
+                                const count = items.filter(i => i.platform === p).length;
+                                return count > 0 ? `<button onclick="filterPlatform('${p}')" class="platform-filter-btn text-xs px-2 py-1 rounded-full border border-gray-700" data-platform="${p}" style="color:${platformColors[p] || '#71767b'}">${platformIcon(p)} ${count}</button>` : '';
+                            }).join('')}
+                        </div>
                     </div>
                     <div class="item-list max-h-[600px] overflow-y-auto" id="social-list">
                         ${items.length === 0 ? '<div class="p-8 text-center text-gray-600">Sin menciones</div>' :
@@ -499,8 +523,8 @@ function renderSocial(items, stats, sentByPlatform, topInfluencers) {
                                         </div>
                                         <p class="text-sm text-gray-300 line-clamp-3">${escapeHtml(item.text || '')}</p>
                                         <div class="flex items-center gap-4 mt-2 text-xs text-gray-600">
-                                            <span>${fmtNum(item.likes)} ${item.platform === 'youtube' ? 'views' : 'likes'}</span>
-                                            <span>${fmtNum(item.retweets)} ${item.platform === 'reddit' ? 'comments' : item.platform === 'youtube' ? '' : 'RT'}</span>
+                                            <span>${fmtNum(item.likes)} ${item.platform === 'youtube' ? 'vistas' : 'me gusta'}</span>
+                                            <span>${fmtNum(item.retweets)} ${item.platform === 'reddit' ? 'comentarios' : item.platform === 'youtube' ? '' : 'RT'}</span>
                                             <span>${formatDate(item.created_at)}</span>
                                             ${item.url ? `<a href="${item.url}" target="_blank" class="text-accent hover:underline">Ver</a>` : ''}
                                         </div>
@@ -535,7 +559,7 @@ function renderSocial(items, stats, sentByPlatform, topInfluencers) {
                                 <div class="flex items-center gap-2 flex-shrink-0">
                                     <span class="text-[10px] text-gray-500">${inf.mentions}x</span>
                                     <span class="text-[10px]" style="color:${sentColor}">${(inf.avg_sentiment || 0).toFixed(2)}</span>
-                                    <span class="text-[10px] text-gray-600">${fmtNum(inf.total_likes)} likes</span>
+                                    <span class="text-[10px] text-gray-600">${fmtNum(inf.total_likes)} me gusta</span>
                                 </div>
                             </div>`;
                         }).join('')}
@@ -614,10 +638,10 @@ function renderActivity(items, stats, activityPeaks) {
                                         </div>
                                         <p class="text-sm text-gray-300 line-clamp-3">${escapeHtml(item.text || '')}</p>
                                         <div class="flex items-center gap-4 mt-2 text-xs text-gray-600">
-                                            <span>${fmtNum(item.likes)} likes</span>
-                                            <span>${fmtNum(item.comments)} comments</span>
-                                            <span>${fmtNum(item.shares)} shares</span>
-                                            ${item.views ? `<span>${fmtNum(item.views)} views</span>` : ''}
+                                            <span>${fmtNum(item.likes)} me gusta</span>
+                                            <span>${fmtNum(item.comments)} comentarios</span>
+                                            <span>${fmtNum(item.shares)} compartidos</span>
+                                            ${item.views ? `<span>${fmtNum(item.views)} vistas</span>` : ''}
                                             ${item.engagement_rate ? `<span class="text-accent">${(item.engagement_rate * 100).toFixed(2)}% eng</span>` : ''}
                                             ${item.url ? `<a href="${item.url}" target="_blank" class="text-accent hover:underline">Ver</a>` : ''}
                                         </div>
@@ -648,7 +672,7 @@ function renderActivity(items, stats, activityPeaks) {
                                 <span class="text-lg font-bold text-gray-600">${i + 1}</span>
                                 <div class="flex-1 min-w-0">
                                     <p class="text-xs text-gray-400 truncate">${escapeHtml((p.text || '').slice(0, 80))}</p>
-                                    <span class="text-xs text-accent">${fmtNum(p.likes)} likes</span>
+                                    <span class="text-xs text-accent">${fmtNum(p.likes)} me gusta</span>
                                 </div>
                             </div>
                         `).join('')}
@@ -1089,9 +1113,12 @@ function renderInforme(weeklyReports, imageIndex) {
             <div class="bg-dark-700 rounded-xl border border-gray-800 p-5">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="font-semibold text-white">Informe Semanal con Recomendaciones</h3>
-                    <button onclick="generateWeeklyReport()" id="btn-gen-report" class="bg-accent hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-                        Generar Informe
-                    </button>
+                    <div class="flex gap-2">
+                        ${weeklyReports.length > 0 ? `<button onclick="window.open('/api/player/${currentPlayerId}/weekly-report-pdf','_blank')" class="bg-dark-600 hover:bg-dark-500 text-gray-300 px-3 py-2 rounded-lg text-sm border border-gray-700">Descargar PDF</button>` : ''}
+                        <button onclick="generateWeeklyReport()" id="btn-gen-report" class="bg-accent hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                            Generar Informe
+                        </button>
+                    </div>
                 </div>
                 ${weeklyReports.length === 0 ? '<p class="text-gray-600 text-sm">Aun no hay informes generados. Pulsa "Generar Informe" para crear uno.</p>' : ''}
             </div>
@@ -1471,6 +1498,81 @@ async function reloadDashboardData(playerId) {
     renderActivity(activity, stats, activityPeaks);
     renderAlerts(alerts);
     renderHistorico(stats);
+}
+
+// -- Loading Skeletons --
+function showSkeletons() {
+    const skeletonCard = `<div class="skeleton-card"><div class="skeleton skeleton-line full"></div><div class="skeleton skeleton-line medium"></div><div class="skeleton skeleton-line short"></div></div>`;
+    const skeletonCards = Array(4).fill(`<div class="skeleton-card p-4"><div class="skeleton skeleton-line short" style="height:10px;margin-bottom:8px;"></div><div class="skeleton skeleton-line medium" style="height:24px;"></div></div>`).join('');
+    document.getElementById('summary-cards').innerHTML = `<div class="col-span-2 md:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-4">${skeletonCards}</div>`;
+    ['tab-prensa', 'tab-redes', 'tab-actividad'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = Array(3).fill(skeletonCard).join('');
+    });
+}
+
+// -- Global Search --
+let _searchTimeout = null;
+function debounceGlobalSearch(q) {
+    clearTimeout(_searchTimeout);
+    const results = document.getElementById('global-search-results');
+    if (!q || q.length < 2) { results.classList.add('hidden'); return; }
+    _searchTimeout = setTimeout(() => globalSearch(q), 300);
+}
+
+async function globalSearch(q) {
+    if (!currentPlayerId || !q) return;
+    const results = document.getElementById('global-search-results');
+    try {
+        const data = await fetch(`/api/search?player_id=${currentPlayerId}&q=${encodeURIComponent(q)}`).then(r => r.json());
+        if (!data.length) {
+            results.innerHTML = '<div class="p-4 text-sm text-gray-500 text-center">Sin resultados</div>';
+            results.classList.remove('hidden');
+            return;
+        }
+        const typeIcons = { press: '📰', social: '💬', post: '📱' };
+        const typeLabels = { press: 'Prensa', social: 'Redes', post: 'Post' };
+        results.innerHTML = data.map(r => `
+            <div class="p-3 card-hover border-b border-gray-800/50">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs">${typeIcons[r.type] || ''}</span>
+                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-dark-500 text-gray-400">${typeLabels[r.type] || r.type}</span>
+                    <span class="text-[10px] text-gray-600">${r.extra || ''}</span>
+                    <span class="text-[10px] px-2 py-0.5 rounded-full badge-${r.sentiment_label || 'neutro'}">${r.sentiment_label || ''}</span>
+                </div>
+                <p class="text-sm text-gray-300 line-clamp-2">${escapeHtml((r.text || '').slice(0, 150))}</p>
+                <div class="flex items-center gap-3 mt-1">
+                    <span class="text-[10px] text-gray-600">${formatDate(r.date)}</span>
+                    ${r.url ? `<a href="${r.url}" target="_blank" class="text-[10px] text-accent hover:underline">Ver</a>` : ''}
+                </div>
+            </div>
+        `).join('');
+        results.classList.remove('hidden');
+    } catch (e) { results.classList.add('hidden'); }
+}
+
+// Close search results on click outside
+document.addEventListener('click', (e) => {
+    const sr = document.getElementById('global-search-results');
+    const si = document.getElementById('global-search');
+    if (sr && si && !sr.contains(e.target) && e.target !== si) sr.classList.add('hidden');
+});
+
+// -- Platform Filter --
+function filterPlatform(platform) {
+    document.querySelectorAll('.platform-filter-btn').forEach(b => b.classList.remove('active'));
+    if (platform) {
+        document.querySelector(`[data-platform="${platform}"]`)?.classList.add('active');
+    } else {
+        document.querySelector('[data-platform="all"]')?.classList.add('active');
+    }
+    const list = document.getElementById('social-list');
+    if (!list) return;
+    list.querySelectorAll('.search-item').forEach(item => {
+        if (!platform) { item.style.display = ''; return; }
+        const search = item.dataset.search || '';
+        item.style.display = search.includes(platform) ? '' : 'none';
+    });
 }
 
 // -- Search/Filter --

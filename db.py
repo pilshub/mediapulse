@@ -464,11 +464,14 @@ async def get_press(player_id, limit=50, offset=0, date_from=None, date_to=None)
         return [dict(r) for r in await cursor.fetchall()]
 
 
-async def get_social(player_id, limit=50, offset=0, date_from=None, date_to=None):
+async def get_social(player_id, limit=50, offset=0, date_from=None, date_to=None, platform=None):
     async with aiosqlite.connect(DB_PATH) as conn:
         conn.row_factory = aiosqlite.Row
         q = "SELECT * FROM social_mentions WHERE player_id = ?"
         p = [player_id]
+        if platform:
+            q += " AND platform = ?"
+            p.append(platform)
         if date_from:
             q += " AND created_at >= ?"
             p.append(date_from)
@@ -496,6 +499,32 @@ async def get_player_posts_db(player_id, limit=50, offset=0, date_from=None, dat
         p.extend([limit, offset])
         cursor = await conn.execute(q, p)
         return [dict(r) for r in await cursor.fetchall()]
+
+
+async def search_all(player_id, query, limit=30):
+    """Search across press, social mentions and player posts."""
+    q = f"%{query}%"
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        results = []
+        # Press
+        cursor = await conn.execute(
+            "SELECT 'press' as type, title as text, source as extra, url, sentiment_label, published_at as date FROM press_items WHERE player_id = ? AND title LIKE ? ORDER BY published_at DESC LIMIT ?",
+            (player_id, q, limit))
+        results.extend([dict(r) for r in await cursor.fetchall()])
+        # Social
+        cursor = await conn.execute(
+            "SELECT 'social' as type, text, platform as extra, url, sentiment_label, created_at as date FROM social_mentions WHERE player_id = ? AND text LIKE ? ORDER BY created_at DESC LIMIT ?",
+            (player_id, q, limit))
+        results.extend([dict(r) for r in await cursor.fetchall()])
+        # Posts
+        cursor = await conn.execute(
+            "SELECT 'post' as type, text, platform as extra, url, sentiment_label, posted_at as date FROM player_posts WHERE player_id = ? AND text LIKE ? ORDER BY posted_at DESC LIMIT ?",
+            (player_id, q, limit))
+        results.extend([dict(r) for r in await cursor.fetchall()])
+        # Sort by date descending
+        results.sort(key=lambda x: x.get("date") or "", reverse=True)
+        return results[:limit]
 
 
 async def get_alerts(player_id, limit=20):
@@ -1063,6 +1092,38 @@ async def get_scan_count(player_id):
             (player_id,),
         )).fetchone()
         return row[0]
+
+
+async def get_cost_estimate():
+    """Estimate API costs based on scan history."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        # Total scans
+        row = await (await conn.execute("SELECT COUNT(*) as total FROM scan_log WHERE status = 'completed'")).fetchone()
+        total_scans = row[0]
+        # Items analyzed (approximation)
+        row = await (await conn.execute("SELECT SUM(press_count + mentions_count + posts_count) as total FROM scan_log WHERE status = 'completed'")).fetchone()
+        total_items = row[0] or 0
+        # Per-scan cost estimates
+        apify_per_scan = 0.03  # ~$0.03 per actor run avg (Twitter+Instagram+TikTok)
+        openai_per_item = 0.001  # ~$0.001 per item analyzed (batch of 30 ~$0.03)
+        apify_cost = total_scans * apify_per_scan * 3  # 3 actors per scan
+        openai_cost = total_items * openai_per_item
+        total = apify_cost + openai_cost
+        # This month
+        row = await (await conn.execute("SELECT COUNT(*) FROM scan_log WHERE status = 'completed' AND started_at >= date('now', 'start of month')")).fetchone()
+        month_scans = row[0]
+        row = await (await conn.execute("SELECT SUM(press_count + mentions_count + posts_count) FROM scan_log WHERE status = 'completed' AND started_at >= date('now', 'start of month')")).fetchone()
+        month_items = row[0] or 0
+        month_cost = (month_scans * apify_per_scan * 3) + (month_items * openai_per_item)
+        return {
+            "total_scans": total_scans,
+            "total_items": total_items,
+            "estimated_total_usd": round(total, 2),
+            "month_scans": month_scans,
+            "month_items": month_items,
+            "estimated_month_usd": round(month_cost, 2),
+        }
 
 
 async def get_last_player_post_date(player_id):

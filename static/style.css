@@ -209,6 +209,47 @@ svg circle {
     background: rgba(0, 186, 124, 0.1);
 }
 
+/* Platform filter buttons */
+.platform-filter-btn {
+    transition: all 0.2s;
+    cursor: pointer;
+    background: transparent;
+}
+.platform-filter-btn:hover {
+    border-color: #555;
+}
+.platform-filter-btn.active {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: #555;
+    font-weight: 600;
+}
+
+/* Loading skeletons */
+@keyframes shimmer {
+    0% { background-position: -200px 0; }
+    100% { background-position: 200px 0; }
+}
+.skeleton {
+    background: linear-gradient(90deg, #161616 25%, #1e1e1e 50%, #161616 75%);
+    background-size: 400px 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 8px;
+}
+.skeleton-card {
+    background: #161616;
+    border: 1px solid #222;
+    border-radius: 12px;
+    padding: 20px;
+}
+.skeleton-line {
+    height: 14px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+}
+.skeleton-line.short { width: 40%; }
+.skeleton-line.medium { width: 70%; }
+.skeleton-line.full { width: 100%; }
+
 /* Word cloud */
 .word-cloud-item {
     transition: opacity 0.2s, transform 0.2s;

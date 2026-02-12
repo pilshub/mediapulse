@@ -303,13 +303,20 @@ async def _check_alerts(player_id, press_items, social_items):
 
 async def _send_telegram_alert(player_name, summary, alert_count, report):
     s = summary
-    msg = f"""*Monitorizacion - {player_name}*
-Noticias: {s.get('press_count', 0)} | Sent: {s.get('press_sentiment', '-')}
-Menciones: {s.get('mentions_count', 0)} | Sent: {s.get('social_sentiment', '-')}
-Posts: {s.get('posts_count', 0)} | Engagement: {s.get('avg_engagement', '-')}
-Alertas: {alert_count}
+    ps = s.get('press_sentiment')
+    ss = s.get('social_sentiment')
+    ps_emoji = "🟢" if ps and ps > 0.2 else "🔴" if ps and ps < -0.2 else "🟡"
+    ss_emoji = "🟢" if ss and ss > 0.2 else "🔴" if ss and ss < -0.2 else "🟡"
+    alert_emoji = "🚨" if alert_count > 0 else "✅"
 
-{report.get('text', '')[:500]}"""
+    msg = f"""📊 *MediaPulse - {player_name}*
+
+📰 Prensa: *{s.get('press_count', 0)}* noticias {ps_emoji} {f"{ps:+.2f}" if ps else "-"}
+💬 Redes: *{s.get('mentions_count', 0)}* menciones {ss_emoji} {f"{ss:+.2f}" if ss else "-"}
+📱 Posts: *{s.get('posts_count', 0)}* | Eng: {f"{s.get('avg_engagement', 0)*100:.1f}%" if s.get('avg_engagement') else "-"}
+{alert_emoji} Alertas: *{alert_count}*
+
+{report.get('text', '')[:400]}"""
 
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"

@@ -244,14 +244,21 @@ async def get_press(player_id: int, limit: int = 50, offset: int = 0,
 
 @app.get("/api/social")
 async def get_social(player_id: int, limit: int = 50, offset: int = 0,
-                     date_from: Optional[str] = None, date_to: Optional[str] = None):
-    return await db.get_social(player_id, limit, offset, date_from, date_to)
+                     date_from: Optional[str] = None, date_to: Optional[str] = None,
+                     platform: Optional[str] = None):
+    return await db.get_social(player_id, limit, offset, date_from, date_to, platform)
 
 
 @app.get("/api/activity")
 async def get_activity(player_id: int, limit: int = 50, offset: int = 0,
                        date_from: Optional[str] = None, date_to: Optional[str] = None):
     return await db.get_player_posts_db(player_id, limit, offset, date_from, date_to)
+
+
+@app.get("/api/search")
+async def search_content(player_id: int, q: str, limit: int = 30):
+    """Search across press, social and player posts."""
+    return await db.search_all(player_id, q, limit)
 
 
 @app.get("/api/alerts")
@@ -327,6 +334,12 @@ async def get_scan_history(player_id: int, limit: int = 50):
 @app.get("/api/scheduler/status")
 async def scheduler_status():
     return get_scheduler_status()
+
+
+@app.get("/api/costs")
+async def get_costs():
+    """Get estimated API cost breakdown."""
+    return await db.get_cost_estimate()
 
 
 # -- CSV Export --
@@ -492,6 +505,61 @@ async def generate_weekly_report_endpoint(player_id: int):
 @app.get("/api/player/{player_id}/weekly-reports")
 async def get_weekly_reports(player_id: int, limit: int = 10):
     return await db.get_weekly_reports(player_id, limit)
+
+
+@app.get("/api/player/{player_id}/weekly-report-pdf")
+async def export_weekly_report_pdf(player_id: int, report_id: Optional[int] = None):
+    """Export a weekly report as downloadable HTML."""
+    h = html.escape
+    import aiosqlite
+    async with aiosqlite.connect(db.DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.execute("SELECT * FROM players WHERE id = ?", (player_id,))
+        player = dict(await cursor.fetchone() or {})
+    if not player:
+        raise HTTPException(404, "Jugador no encontrado")
+
+    reports = await db.get_weekly_reports(player_id, 1)
+    if not reports:
+        raise HTTPException(404, "Sin informes semanales")
+    wr = reports[0]
+    rec = h(wr.get("recommendation", ""))
+    rec_colors = {"COMPRAR": "#00ba7c", "RENOVAR": "#1d9bf0", "MONITORIZAR": "#ffd166", "PRECAUCION": "#f97316", "VENDER": "#f4212e"}
+    rc = rec_colors.get(rec, "#ffd166")
+    data = wr.get("data", {})
+    risks = "".join(f"<li>{h(r)}</li>" for r in (data.get("risks") or []))
+    opps = "".join(f"<li>{h(o)}</li>" for o in (data.get("opportunities") or []))
+    idx_val = wr.get("image_index", 0) or 0
+    idx_color = "#00ba7c" if idx_val >= 70 else "#ffd166" if idx_val >= 40 else "#f4212e"
+
+    report_html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Informe Semanal - {h(player.get('name',''))}</title>
+<style>
+body{{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0a0a0a;color:#e7e9ea;padding:40px;max-width:800px;margin:0 auto;}}
+.header{{background:#161616;border:1px solid #222;border-radius:12px;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;}}
+.logo{{font-size:18px;font-weight:bold;color:#fff;}} .logo span{{color:#1d9bf0;}}
+.card{{background:#161616;border:1px solid #222;border-radius:12px;padding:20px;margin:16px 0;}}
+h2{{color:#fff;margin-top:0;}} ul{{color:#ccc;}}
+@media print{{body{{background:#fff;color:#000;}} .card,.header{{background:#f9f9f9;border-color:#ddd;}}}}
+</style></head><body>
+<div class="header"><div class="logo">Media<span>Pulse</span></div><div style="color:#71767b;font-size:12px;">Informe Semanal - {datetime.now().strftime('%d/%m/%Y')}</div></div>
+<h1 style="color:#1d9bf0;">{h(player.get('name',''))}</h1>
+<p style="color:#71767b;">{h(player.get('club',''))} | Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
+<div class="card">
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
+<span style="background:{rc}20;color:{rc};padding:8px 20px;border-radius:8px;font-weight:bold;font-size:16px;border:1px solid {rc}40;">{rec}</span>
+<div><span style="font-size:28px;font-weight:bold;color:{idx_color};">{round(idx_val)}</span><span style="color:#71767b;font-size:14px;">/100 Indice de Imagen</span></div>
+</div>
+<p style="font-size:14px;color:#ccc;line-height:1.6;">{h(wr.get('report_text',''))}</p>
+{f'<p style="color:#999;font-style:italic;">{h(data.get("justification",""))}</p>' if data.get("justification") else ''}
+</div>
+{f'<div class="card"><h2 style="color:#f4212e;">Riesgos</h2><ul>{risks}</ul></div>' if risks else ''}
+{f'<div class="card"><h2 style="color:#00ba7c;">Oportunidades</h2><ul>{opps}</ul></div>' if opps else ''}
+<div style="margin-top:40px;padding-top:20px;border-top:1px solid #222;color:#71767b;font-size:11px;text-align:center;">MediaPulse - Informe Semanal | Confidencial</div>
+</body></html>"""
+    return HTMLResponse(content=report_html, headers={
+        "Content-Disposition": f"attachment; filename=InformeSemanal_{player.get('name','').replace(' ','_')}_{datetime.now().strftime('%Y%m%d')}.html"
+    })
 
 
 # -- PDF Export --
@@ -665,36 +733,49 @@ def _build_pdf_html(player, summary, report, press, social, activity, alerts, im
         </div>"""
 
     player_name = h(player.get('name', ''))
+    eng_pct = f"{s.get('avg_engagement', 0)*100:.2f}%" if s.get('avg_engagement') else "-"
     return f"""<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Informe - {player_name}</title>
+<html><head><meta charset="UTF-8"><title>MediaPulse - {player_name}</title>
 <style>
 body{{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0a0a0a;color:#e7e9ea;padding:40px;max-width:900px;margin:0 auto;}}
-h1{{color:#1d9bf0;}} h2{{color:#fff;border-bottom:1px solid #222;padding-bottom:8px;margin-top:30px;}}
+h1{{color:#1d9bf0;margin:0;}} h2{{color:#fff;border-bottom:1px solid #222;padding-bottom:8px;margin-top:30px;}}
 .card{{background:#161616;border:1px solid #222;border-radius:12px;padding:20px;margin:12px 0;}}
 .grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}}
 .stat{{text-align:center;}} .stat-value{{font-size:24px;font-weight:bold;color:#fff;}}
 .stat-label{{font-size:11px;color:#71767b;text-transform:uppercase;}}
 table{{width:100%;border-collapse:collapse;}} a{{color:#1d9bf0;text-decoration:none;}}
-@media print{{body{{background:#fff;color:#000;}} .card{{border-color:#ddd;background:#f9f9f9;}}}}
+.header-bar{{background:#161616;border:1px solid #222;border-radius:12px;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;}}
+.logo{{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:bold;color:#fff;}}
+.logo span{{color:#1d9bf0;}}
+@media print{{body{{background:#fff;color:#000;}} .card{{border-color:#ddd;background:#f9f9f9;}} .header-bar{{background:#f0f0f0;border-color:#ddd;}}}}
 </style></head><body>
-<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+<div class="header-bar">
+<div class="logo">Media<span>Pulse</span></div>
+<div style="color:#71767b;font-size:12px;">Informe generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}</div>
+</div>
+
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
 {photo_html}
 <div>
-<h1 style="margin:0;">{player_name}</h1>
+<h1>{player_name}</h1>
 <p style="margin:4px 0 0;color:#71767b;">{profile_info}</p>
 {tm_html}
 </div>
 </div>
-<p style="color:#71767b;font-size:12px;">Informe generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
 
 {idx_html}
 {rec_html}
 
-<div class="card grid">
+<div class="card grid" style="grid-template-columns:repeat(4,1fr);">
 <div class="stat"><div class="stat-value">{s.get('press_count',0)}{delta_arrow('press_count')}</div><div class="stat-label">Noticias</div></div>
 <div class="stat"><div class="stat-value">{s.get('press_sentiment','-')}{delta_arrow('press_sentiment')}</div><div class="stat-label">Sent. Prensa</div></div>
 <div class="stat"><div class="stat-value">{s.get('mentions_count',0)}{delta_arrow('mentions_count')}</div><div class="stat-label">Menciones</div></div>
 <div class="stat"><div class="stat-value">{s.get('social_sentiment','-')}{delta_arrow('social_sentiment')}</div><div class="stat-label">Sent. Redes</div></div>
+</div>
+<div class="card grid" style="grid-template-columns:repeat(3,1fr);">
+<div class="stat"><div class="stat-value">{s.get('posts_count',0)}</div><div class="stat-label">Posts Jugador</div></div>
+<div class="stat"><div class="stat-value">{eng_pct}</div><div class="stat-label">Engagement</div></div>
+<div class="stat"><div class="stat-value">{s.get('alerts_count',0)}</div><div class="stat-label">Alertas</div></div>
 </div>
 
 <div class="card">
@@ -702,14 +783,15 @@ table{{width:100%;border-collapse:collapse;}} a{{color:#1d9bf0;text-decoration:n
 <p>{h(r.get('executive_summary','Sin resumen disponible'))}</p>
 </div>
 
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
 <div class="card">
 <h2 style="margin-top:0;">Temas Detectados</h2>
 {topics_html or '<span style="color:#666;">Sin temas</span>'}
 </div>
-
 <div class="card">
 <h2 style="margin-top:0;">Marcas Detectadas</h2>
 {brands_html}
+</div>
 </div>
 
 <h2>Prensa ({len(press)} noticias)</h2>
@@ -719,7 +801,7 @@ table{{width:100%;border-collapse:collapse;}} a{{color:#1d9bf0;text-decoration:n
 {alerts_html}
 
 <div style="margin-top:40px;padding-top:20px;border-top:1px solid #222;color:#71767b;font-size:11px;text-align:center;">
-Monitorizacion Online de Jugadores | {datetime.now().strftime('%d/%m/%Y %H:%M')} | Para uso interno
+MediaPulse - Monitorizacion OSINT de Jugadores | {datetime.now().strftime('%d/%m/%Y %H:%M')} | Confidencial - Uso interno
 </div>
 </body></html>"""
 
