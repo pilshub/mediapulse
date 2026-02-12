@@ -1481,18 +1481,22 @@ async def get_portfolio_sparklines():
 # ── Player Stats & Trends ──
 
 async def save_player_stats(player_id, stats):
-    """Save or update player performance stats for current season."""
+    """Save or update player performance stats."""
     async with aiosqlite.connect(DB_PATH) as conn:
         # Delete old stats for this player (keep only latest)
         await conn.execute("DELETE FROM player_stats WHERE player_id = ?", (player_id,))
+        # Store both career totals and current season
+        data_json = json.dumps({
+            "competitions": stats.get("competitions", []),
+            "current_season": stats.get("current_season", {}),
+        })
         await conn.execute(
             """INSERT INTO player_stats (player_id, season, appearances, goals, assists,
                minutes, yellows, reds, competitions_json)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (player_id, stats.get("season", ""), stats.get("appearances", 0),
              stats.get("goals", 0), stats.get("assists", 0), stats.get("minutes", 0),
-             stats.get("yellows", 0), stats.get("reds", 0),
-             json.dumps(stats.get("competitions", []))),
+             stats.get("yellows", 0), stats.get("reds", 0), data_json),
         )
         await conn.commit()
 
@@ -1508,7 +1512,13 @@ async def get_player_stats(player_id):
         row = await cursor.fetchone()
         if row:
             r = dict(row)
-            r["competitions"] = json.loads(r.get("competitions_json") or "[]")
+            data = json.loads(r.get("competitions_json") or "{}")
+            if isinstance(data, dict):
+                r["competitions"] = data.get("competitions", [])
+                r["current_season"] = data.get("current_season", {})
+            else:
+                r["competitions"] = data if isinstance(data, list) else []
+                r["current_season"] = {}
             return r
         return None
 

@@ -1209,45 +1209,38 @@ function renderInteligencia(intel) {
             <!-- Stats & Trends Row -->
             ${intel.stats || intel.trends ? `
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                ${intel.stats ? `
+                ${intel.stats ? (() => {
+                    const cs = intel.stats.current_season || {};
+                    const hasCurrent = (cs.appearances || 0) > 0;
+                    return `
                 <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
-                    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Rendimiento Deportivo ${intel.stats.season ? '(' + intel.stats.season + ')' : ''}</h3>
-                    <div class="grid grid-cols-3 gap-3 text-center">
-                        <div>
-                            <div class="text-lg font-bold text-white">${intel.stats.appearances || 0}</div>
-                            <div class="text-[10px] text-gray-500 uppercase">Partidos</div>
-                        </div>
-                        <div>
-                            <div class="text-lg font-bold text-green-400">${intel.stats.goals || 0}</div>
-                            <div class="text-[10px] text-gray-500 uppercase">Goles</div>
-                        </div>
-                        <div>
-                            <div class="text-lg font-bold text-blue-400">${intel.stats.assists || 0}</div>
-                            <div class="text-[10px] text-gray-500 uppercase">Asist.</div>
-                        </div>
-                        <div>
-                            <div class="text-lg font-bold text-gray-300">${intel.stats.minutes ? (intel.stats.minutes).toLocaleString() : 0}'</div>
-                            <div class="text-[10px] text-gray-500 uppercase">Minutos</div>
-                        </div>
-                        <div>
-                            <div class="text-lg font-bold text-yellow-400">${intel.stats.yellows || 0}</div>
-                            <div class="text-[10px] text-gray-500 uppercase">Amarillas</div>
-                        </div>
-                        <div>
-                            <div class="text-lg font-bold text-red-400">${intel.stats.reds || 0}</div>
-                            <div class="text-[10px] text-gray-500 uppercase">Rojas</div>
-                        </div>
+                    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Rendimiento Deportivo</h3>
+                    ${hasCurrent ? `
+                    <div class="text-[10px] text-accent uppercase tracking-wider mb-2 font-semibold">Temporada ${intel.stats.season || 'actual'}</div>
+                    <div class="grid grid-cols-2 gap-2 text-center mb-3">
+                        <div><div class="text-lg font-bold text-white">${cs.appearances || 0}</div><div class="text-[10px] text-gray-500">Partidos</div></div>
+                        <div><div class="text-lg font-bold text-green-400">${cs.goals || 0}</div><div class="text-[10px] text-gray-500">Goles</div></div>
+                    </div>
+                    <div class="text-[10px] text-gray-600 uppercase tracking-wider mb-2 pt-2 border-t border-gray-800">Carrera</div>` : ''}
+                    <div class="grid grid-cols-3 gap-2 text-center">
+                        <div><div class="text-base font-bold text-white">${intel.stats.appearances || 0}</div><div class="text-[10px] text-gray-500">Partidos</div></div>
+                        <div><div class="text-base font-bold text-green-400">${intel.stats.goals || 0}</div><div class="text-[10px] text-gray-500">Goles</div></div>
+                        <div><div class="text-base font-bold text-blue-400">${intel.stats.assists || 0}</div><div class="text-[10px] text-gray-500">Asist.</div></div>
+                        <div><div class="text-base font-bold text-gray-300">${intel.stats.minutes ? (intel.stats.minutes).toLocaleString() : 0}'</div><div class="text-[10px] text-gray-500">Minutos</div></div>
+                        <div><div class="text-base font-bold text-yellow-400">${intel.stats.yellows || 0}</div><div class="text-[10px] text-gray-500">Amarillas</div></div>
+                        <div><div class="text-base font-bold text-red-400">${intel.stats.reds || 0}</div><div class="text-[10px] text-gray-500">Rojas</div></div>
                     </div>
                     ${intel.stats.competitions && intel.stats.competitions.length > 0 ? `
-                    <div class="mt-3 pt-3 border-t border-gray-800">
-                        ${intel.stats.competitions.map(c => `
+                    <div class="mt-3 pt-3 border-t border-gray-800 max-h-32 overflow-y-auto">
+                        ${intel.stats.competitions.slice(0, 8).map(c => `
                             <div class="flex justify-between text-xs text-gray-400 mb-1">
                                 <span>${escapeHtml(c.name)}</span>
-                                <span class="text-white">${c.appearances} pj, ${c.goals} goles</span>
+                                <span class="text-white">${c.appearances} pj, ${c.goals} g</span>
                             </div>
                         `).join('')}
                     </div>` : ''}
-                </div>` : ''}
+                </div>`;
+                })() : ''}
                 ${intel.trends ? `
                 <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
                     <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Google Trends (30 dias)</h3>

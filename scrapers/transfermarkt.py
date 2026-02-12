@@ -120,25 +120,40 @@ async def scrape_transfermarkt_stats(tm_id):
                 tfoot = table.find("tfoot")
                 if tfoot:
                     cells = tfoot.find_all("td")
-                    # Totals row typically: label, in_squad, appearances, goals, assists, ...
-                    # Extract numbers from cells
-                    nums = []
-                    for cell in cells:
-                        text = cell.get_text(strip=True).replace(".", "").replace("'", "").replace(",", "")
-                        text = text.replace("-", "0")
-                        if text.isdigit():
-                            nums.append(int(text))
-                        else:
-                            nums.append(0)
+                    # Footer: blank, "Total:", blank, blank, in_squad, appearances, goals_per_game, goals, assists, -, sub_in, sub_out, yellows, 2nd_yellow, reds, penalty_goals, minutes', total_minutes'
+                    cell_texts = [c.get_text(strip=True) for c in cells]
 
-                    # Map numbers: typically [in_squad, appearances, goals, assists, ?, sub_in, sub_out, yellows, 2nd_yellow, reds, penalty_goals, minutes]
-                    if len(nums) >= 8:
-                        stats["appearances"] = nums[1] if len(nums) > 1 else 0
-                        stats["goals"] = nums[2] if len(nums) > 2 else 0
-                        stats["assists"] = nums[3] if len(nums) > 3 else 0
-                        stats["yellows"] = nums[7] if len(nums) > 7 else 0
-                        stats["reds"] = nums[9] if len(nums) > 9 else 0
-                        stats["minutes"] = nums[-1] if nums[-1] > 10 else 0  # minutes is last and largest
+                    def parse_int(text):
+                        """Parse integer from cell text, handling ., ', -, etc."""
+                        text = text.replace(".", "").replace("'", "").replace(",", "").replace("-", "0").strip()
+                        return int(text) if text.isdigit() else 0
+
+                    # Find "Total" label position and work from there
+                    total_idx = -1
+                    for i, t in enumerate(cell_texts):
+                        if "total" in t.lower():
+                            total_idx = i
+                            break
+
+                    if total_idx >= 0 and len(cell_texts) > total_idx + 14:
+                        offset = total_idx + 1  # skip blanks after "Total"
+                        # Skip blank cells after Total
+                        while offset < len(cell_texts) and cell_texts[offset] == "":
+                            offset += 1
+                        # Now: in_squad, appearances, goals_per_game, goals, assists, ?, sub_in, sub_out, yellows, 2nd_yellow, reds, penalty, minutes_detail, minutes_total
+                        remaining = cell_texts[offset:]
+                        if len(remaining) >= 10:
+                            stats["appearances"] = parse_int(remaining[1])  # appearances
+                            stats["goals"] = parse_int(remaining[3])        # goals
+                            stats["assists"] = parse_int(remaining[4])      # assists
+                            stats["yellows"] = parse_int(remaining[8])      # yellows
+                            stats["reds"] = parse_int(remaining[10]) if len(remaining) > 10 else 0  # reds
+                            # Minutes is the last numeric cell
+                            for txt in reversed(remaining):
+                                mins = parse_int(txt)
+                                if mins > 10:
+                                    stats["minutes"] = mins
+                                    break
 
                 # Also parse individual rows for competition breakdown
                 tbody = table.find("tbody")
@@ -146,23 +161,36 @@ async def scrape_transfermarkt_stats(tm_id):
                     rows = tbody.find_all("tr", class_=["odd", "even"])
                     for row in rows:
                         cells = row.find_all("td")
-                        if len(cells) >= 4:
-                            comp_link = cells[0].find("a")
-                            comp_name = comp_link.get_text(strip=True) if comp_link else cells[0].get_text(strip=True)
+                        cell_texts = [c.get_text(strip=True) for c in cells]
+                        if len(cell_texts) >= 8:
+                            # Row: season, blank, competition, blank, in_squad, appearances, goals_per_game, goals
+                            comp_name = cell_texts[2]
+                            season = cell_texts[0]
                             if comp_name and comp_name not in ["", "-"]:
-                                # Get appearances from this competition
-                                app_text = cells[2].get_text(strip=True) if len(cells) > 2 else "0"
-                                goals_text = cells[3].get_text(strip=True) if len(cells) > 3 else "0"
+                                app = int(cell_texts[5]) if cell_texts[5].isdigit() else 0
+                                goals = int(cell_texts[7]) if cell_texts[7].isdigit() else 0
                                 stats["competitions"].append({
-                                    "name": comp_name,
-                                    "appearances": int(app_text) if app_text.isdigit() else 0,
-                                    "goals": int(goals_text) if goals_text.isdigit() else 0,
+                                    "name": f"{comp_name} ({season})" if season else comp_name,
+                                    "appearances": app,
+                                    "goals": goals,
                                 })
 
-                # Detect season from page
-                season_match = re.search(r'(?:Saison|Season)\s*(\d{2}/\d{2})', html)
-                if season_match:
-                    stats["season"] = season_match.group(1)
+                # Calculate current season stats (25/26 or latest)
+                from datetime import datetime
+                current_year = datetime.now().year
+                season_str = f"{str(current_year - 1)[2:]}/{str(current_year)[2:]}"  # e.g. "25/26"
+
+                current_season = {"appearances": 0, "goals": 0, "assists": 0,
+                                  "minutes": 0, "yellows": 0, "reds": 0}
+                # Sum competitions matching current season from row data
+                for row in (tbody.find_all("tr", class_=["odd", "even"]) if tbody else []):
+                    cells_t = [c.get_text(strip=True) for c in row.find_all("td")]
+                    if len(cells_t) >= 8 and cells_t[0] == season_str:
+                        current_season["appearances"] += int(cells_t[5]) if cells_t[5].isdigit() else 0
+                        current_season["goals"] += int(cells_t[7]) if cells_t[7].isdigit() else 0
+
+                stats["season"] = season_str
+                stats["current_season"] = current_season
 
                 # If totals row failed, sum from individual rows
                 if stats["appearances"] == 0 and stats["competitions"]:
