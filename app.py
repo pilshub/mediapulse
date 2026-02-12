@@ -43,23 +43,20 @@ from scheduler import start_scheduler, stop_scheduler, get_scheduler_status
 from analyzer import generate_weekly_report
 
 # -- Auth config --
-DASHBOARD_USER = os.getenv("DASHBOARD_USER", "admin")
 DASHBOARD_PASS = os.getenv("DASHBOARD_PASS", "")
 AUTH_SECRET = os.getenv("AUTH_SECRET", secrets.token_hex(32))
 AUTH_ENABLED = bool(DASHBOARD_PASS)
 
-PUBLIC_PATHS = {"/health", "/login", "/static"}
 
-
-def _make_token(username):
+def _make_token():
     """Create signed auth token."""
-    msg = f"{username}:{AUTH_SECRET}".encode()
+    msg = f"mediapulse:{AUTH_SECRET}".encode()
     return hmac.new(AUTH_SECRET.encode(), msg, hashlib.sha256).hexdigest()
 
 
-def _verify_token(token, username):
+def _verify_token(token):
     """Verify auth token."""
-    expected = _make_token(username)
+    expected = _make_token()
     return hmac.compare_digest(token, expected)
 
 
@@ -75,8 +72,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         # Check auth cookie
         token = request.cookies.get("ar_token", "")
-        user = request.cookies.get("ar_user", "")
-        if user and token and _verify_token(token, user):
+        if token and _verify_token(token):
             return await call_next(request)
 
         # API calls get 401, pages get redirect
@@ -90,7 +86,7 @@ async def lifespan(app: FastAPI):
     await db.init_db()
     start_scheduler()
     if AUTH_ENABLED:
-        log.info(f"[auth] Authentication enabled (user: {DASHBOARD_USER})")
+        log.info("[auth] Authentication enabled (password-only)")
     else:
         log.info("[auth] No DASHBOARD_PASS set - auth disabled")
     yield
@@ -151,7 +147,7 @@ async def health():
 async def login_page():
     return HTMLResponse("""<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AgentRadar - Login</title>
+<title>MediaPulse - Login</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0a0a0a;color:#e7e9ea;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}
@@ -166,12 +162,11 @@ button:hover{background:#1a8cd8}
 .err{color:#f4212e;font-size:13px;text-align:center;margin-bottom:16px;display:none}
 </style></head><body>
 <div class="card">
-<h1>AgentRadar</h1>
+<h1>MediaPulse</h1>
 <p class="sub">Plataforma de monitorizacion OSINT</p>
-<div class="err" id="err">Usuario o contrasena incorrectos</div>
+<div class="err" id="err">Contrasena incorrecta</div>
 <form method="POST" action="/login">
-<label>Usuario</label><input name="username" required autofocus>
-<label>Contrasena</label><input name="password" type="password" required>
+<label>Contrasena</label><input name="password" type="password" required autofocus>
 <button type="submit">Entrar</button>
 </form>
 </div>
@@ -182,11 +177,10 @@ if(location.search.includes('error=1'))document.getElementById('err').style.disp
 
 
 @app.post("/login")
-async def login_submit(username: str = Form(...), password: str = Form(...)):
-    if username == DASHBOARD_USER and password == DASHBOARD_PASS:
-        token = _make_token(username)
+async def login_submit(password: str = Form(...)):
+    if password == DASHBOARD_PASS:
+        token = _make_token()
         resp = RedirectResponse("/", status_code=302)
-        resp.set_cookie("ar_user", username, httponly=True, samesite="lax", max_age=86400 * 7)
         resp.set_cookie("ar_token", token, httponly=True, samesite="lax", max_age=86400 * 7)
         return resp
     return RedirectResponse("/login?error=1", status_code=302)
@@ -195,7 +189,6 @@ async def login_submit(username: str = Form(...), password: str = Form(...)):
 @app.get("/logout")
 async def logout():
     resp = RedirectResponse("/login")
-    resp.delete_cookie("ar_user")
     resp.delete_cookie("ar_token")
     return resp
 
