@@ -15,8 +15,56 @@ from config import (
 from scrapers.youtube import scrape_youtube
 from scrapers.telegram import scrape_all_telegram
 import feedparser
+import unicodedata
 
 log = logging.getLogger("agentradar")
+
+
+def _normalize(text):
+    """Remove accents and normalize for comparison."""
+    text = unicodedata.normalize('NFD', text.lower())
+    return ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+
+
+def _filter_by_relevance(items, player_name):
+    """Post-scrape filter: discard items that don't mention the player's surname.
+    This catches TikTok/YouTube/Reddit false positives like 'Venezia FC' general
+    news or 'Juan Antonio Casas' when searching for 'Antonio Casas'.
+    """
+    if not player_name or not items:
+        return items
+
+    name_parts = player_name.strip().split()
+    if len(name_parts) < 2:
+        return items  # Can't reliably filter with just one name
+
+    # Use last name as primary filter. For compound names like "Rodri Sanchez",
+    # surname = "sanchez". For "Antonio Casas", surname = "casas".
+    surname = _normalize(name_parts[-1])
+    # Also require first name nearby to avoid matching different people with same surname
+    first_name = _normalize(name_parts[0])
+
+    if len(surname) < 3:
+        return items  # Too short to filter reliably
+
+    filtered = []
+    removed = 0
+    for item in items:
+        text = _normalize(
+            (item.get("text", "") or "") + " " +
+            (item.get("title", "") or "") + " " +
+            (item.get("author", "") or "")
+        )
+        # Must contain surname AND (first name or player handle)
+        if surname in text and (first_name in text or len(name_parts) == 1):
+            filtered.append(item)
+        else:
+            removed += 1
+
+    if removed:
+        log.info(f"[social] Relevance filter: {len(items)} -> {len(filtered)} "
+                 f"(removed {removed} items not mentioning '{player_name}')")
+    return filtered
 
 
 async def _apify_run_with_retry(session, actor, input_data, max_items, label, retries=2):
@@ -159,15 +207,18 @@ async def scrape_reddit(player_name, session):
 
 
 async def scrape_tiktok_mentions(player_name, session, club=None, max_items=None):
-    """Scrape TikTok mentions via Apify with retry."""
+    """Scrape TikTok mentions via Apify with retry.
+    NOTE: TikTok search ignores exact-match quotes, so we DON'T include
+    club name (it causes false positives like generic club news).
+    We rely on post-scrape relevance filter instead.
+    """
     if not APIFY_TOKEN:
         log.info("[social] No APIFY_TOKEN, skipping TikTok mentions")
         return []
 
     limit = max_items or MAX_TIKTOK_POSTS
-    search_query = f'"{player_name}"'
-    if club:
-        search_query += f" {club}"
+    # Don't use quotes or club name - TikTok ignores them and they cause FPs
+    search_query = player_name
 
     input_data = {
         "searchQueries": [search_query],
@@ -259,5 +310,9 @@ async def scrape_all_social(player_name, twitter_handle=None, club=None, limit_m
         web_results = await scrape_google_web(player_name, session, club)
 
     total = twitter + reddit + youtube + tiktok + telegram + web_results
-    log.info(f"[social] Total menciones: {len(total)} (Twitter={len(twitter)}, Reddit={len(reddit)}, YouTube={len(youtube)}, TikTok={len(tiktok)}, Telegram={len(telegram)}, Web={len(web_results)})")
+    log.info(f"[social] Total menciones (pre-filter): {len(total)} (Twitter={len(twitter)}, Reddit={len(reddit)}, YouTube={len(youtube)}, TikTok={len(tiktok)}, Telegram={len(telegram)}, Web={len(web_results)})")
+
+    # Post-scrape relevance filter: remove items that don't mention the player
+    total = _filter_by_relevance(total, player_name)
+    log.info(f"[social] Total menciones (post-filter): {len(total)}")
     return total

@@ -19,10 +19,14 @@ Analiza los siguientes items y para CADA UNO devuelve un JSON con:
   fichaje, rendimiento, lesion, vida_personal, polemica, sponsors, aficion, entrenador, seleccion, tactica, cantera, economia, otro
 - brands: lista de marcas/sponsors mencionados (Nike, Adidas, Puma, etc). Array vacio si no hay ninguna.
 
-REGLAS DE RELEVANCIA:
-- Si el item menciona otro club diferente a {club} y no menciona a {player_name} explicitamente, es NOT relevant
-- Jugadores con nombre similar pero de otro equipo = NOT relevant
-- En caso de duda, marca relevant: true
+REGLAS DE RELEVANCIA (SE ESTRICTO):
+- El item DEBE mencionar a {player_name} de forma clara y directa para ser relevant
+- Si el item es sobre el CLUB ({club}) en general sin mencionar al jugador por nombre = NOT relevant
+- Jugadores con nombre similar pero de otro equipo = NOT relevant (ej: "Juan Antonio Casas" != "Antonio Casas")
+- Noticias genericas del equipo (resultados, fichajes de OTROS jugadores, ruedas de prensa genericas) = NOT relevant
+- Videos/posts de highlights del equipo que no mencionan al jugador = NOT relevant
+- Contenido en otro idioma que no menciona explicitamente al jugador = NOT relevant
+- En caso de DUDA, marca relevant: false (es mejor filtrar un item dudoso que contaminar el analisis)
 
 REGLAS DE SENTIMIENTO:
 - Se objetivo y preciso con el sentimiento

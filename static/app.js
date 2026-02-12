@@ -511,10 +511,11 @@ function renderSocial(items, stats, sentByPlatform, topInfluencers) {
             <div class="lg:col-span-2 order-2 lg:order-1">
                 <div class="bg-dark-700 rounded-xl border border-gray-800">
                     <div class="p-3 sm:p-4 border-b border-gray-800">
-                        <div class="flex items-center justify-between mb-2">
-                            <h3 class="font-semibold text-white text-sm sm:text-base">Menciones (${items.length})</h3>
+                        <div class="flex items-center justify-between mb-1">
+                            <h3 class="font-semibold text-white text-sm sm:text-base">Menciones en Redes (${items.length})</h3>
                             <button onclick="exportCSV('social')" class="text-xs text-accent hover:underline touch-target">CSV</button>
                         </div>
+                        <p class="text-[10px] sm:text-xs text-gray-500 mb-2">Lo que se dice del jugador en redes sociales y foros</p>
                         <input type="text" placeholder="Buscar en menciones..." class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-accent focus:outline-none mb-2" oninput="filterList(this.value, 'social')">
                         <div class="flex gap-1 flex-wrap">
                             <button onclick="filterPlatform(null)" class="platform-filter-btn active text-xs px-2 py-1.5 rounded-full border border-gray-700 text-gray-400 touch-target" data-platform="all">Todas</button>
@@ -633,10 +634,11 @@ function renderActivity(items, stats, activityPeaks) {
             <div class="lg:col-span-2 order-2 lg:order-1">
                 <div class="bg-dark-700 rounded-xl border border-gray-800">
                     <div class="p-3 sm:p-4 border-b border-gray-800">
-                        <div class="flex items-center justify-between mb-2">
-                            <h3 class="font-semibold text-white text-sm sm:text-base">Posts del Jugador (${items.length})</h3>
+                        <div class="flex items-center justify-between mb-1">
+                            <h3 class="font-semibold text-white text-sm sm:text-base">Sus Redes (${items.length} posts)</h3>
                             <button onclick="exportCSV('activity')" class="text-xs text-accent hover:underline touch-target">CSV</button>
                         </div>
+                        <p class="text-[10px] sm:text-xs text-gray-500 mb-2">Publicaciones propias del jugador en Twitter, Instagram y TikTok</p>
                         <input type="text" placeholder="Buscar en posts..." class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-accent focus:outline-none" oninput="filterList(this.value, 'activity')">
                     </div>
                     <div class="item-list max-h-[500px] sm:max-h-[600px] overflow-y-auto" id="activity-list">

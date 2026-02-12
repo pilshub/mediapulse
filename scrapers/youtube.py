@@ -23,10 +23,10 @@ async def scrape_youtube(player_name, session=None):
         close_session = True
 
     queries = [
-        f"{player_name} futbol",
-        f"{player_name} goles",
-        f"{player_name} football",
-        f"{player_name} goals highlights",
+        f'"{player_name}" futbol',
+        f'"{player_name}" goles',
+        f'"{player_name}" football',
+        f'"{player_name}" goals highlights',
     ]
 
     headers = {
