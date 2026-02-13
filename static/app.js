@@ -787,21 +787,27 @@ function renderAlerts(items) {
                         if (data) {
                             const titles = data.titles || data.samples || [];
                             const urls = data.urls || [];
-                            const platformsList = data.platforms_list || [];
+                            const platformsList = data.platforms_list || data.sources_list || [];
                             if (titles.length > 0) {
-                                sourcesHtml = '<div class="mt-3 pt-3 border-t border-gray-800 space-y-1.5">' +
-                                    '<div class="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Fuentes</div>' +
+                                const uid = 'asrc-' + item.id;
+                                sourcesHtml = `<div class="mt-3 pt-3 border-t border-gray-800">
+                                    <button onclick="document.getElementById('${uid}').classList.toggle('hidden')" class="text-[10px] text-gray-500 uppercase tracking-wider hover:text-gray-300 transition flex items-center gap-1">
+                                        <span>Fuentes (${titles.length})</span>
+                                        <span class="text-[8px]">&#9660;</span>
+                                    </button>
+                                    <div id="${uid}" class="hidden mt-2 space-y-2">` +
                                     titles.slice(0, 5).map((t, idx) => {
                                         const url = urls[idx] || '';
-                                        const src = platformsList[idx] || (data.sources && Array.isArray(data.sources) ? data.sources[0] : '') || '';
-                                        const badge = src ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-dark-500 text-gray-500 mr-1.5 flex-shrink-0">${escapeHtml(src)}</span>` : '';
-                                        if (url) {
-                                            return `<div class="flex items-start gap-1">${badge}<a href="${escapeHtml(url)}" target="_blank" class="text-xs text-gray-400 hover:text-accent transition truncate">${escapeHtml(t)}</a></div>`;
-                                        }
-                                        return `<div class="flex items-start gap-1">${badge}<span class="text-xs text-gray-500 truncate">${escapeHtml(t)}</span></div>`;
+                                        const src = platformsList[idx] || '';
+                                        const badge = src ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-dark-500 text-gray-500 flex-shrink-0">${escapeHtml(src)}</span>` : '';
+                                        return `<div class="bg-dark-900 rounded-lg p-2.5">
+                                            <div class="flex items-center gap-1.5 mb-1">${badge}</div>
+                                            <p class="text-xs text-gray-300 leading-relaxed">${escapeHtml(t)}</p>
+                                            ${url ? `<a href="${escapeHtml(url)}" target="_blank" class="inline-block mt-1.5 text-[10px] text-accent hover:underline">Abrir noticia &rarr;</a>` : ''}
+                                        </div>`;
                                     }).join('') +
-                                    (titles.length > 5 ? `<div class="text-[10px] text-gray-600">... y ${titles.length - 5} mas</div>` : '') +
-                                '</div>';
+                                    (titles.length > 5 ? `<div class="text-[10px] text-gray-600 mt-1">... y ${titles.length - 5} mas</div>` : '') +
+                                '</div></div>';
                             }
                         }
                     } catch(e) {}
@@ -1735,22 +1741,29 @@ function setDateRange(preset) {
     const now = new Date();
     dateRange.preset = preset;
 
-    // Update button states
+    // Update ALL button states (both date range bars)
     document.querySelectorAll('.date-range-btn').forEach(b => b.classList.remove('active'));
-    const activeBtn = document.querySelector(`[data-range="${preset}"]`);
-    if (activeBtn) activeBtn.classList.add('active');
+    document.querySelectorAll(`[data-range="${preset}"]`).forEach(b => b.classList.add('active'));
+
+    // Helper to sync all date inputs
+    const syncDateInputs = (fromVal, toVal) => {
+        const fromEl = document.getElementById('date-from');
+        if (fromEl) fromEl.value = fromVal;
+        document.querySelectorAll('.date-from-sync').forEach(el => el.value = fromVal);
+        const toEl = document.getElementById('date-to');
+        if (toEl) toEl.value = toVal;
+        document.querySelectorAll('.date-to-sync').forEach(el => el.value = toVal);
+    };
 
     if (preset === 'all') {
         dateRange.from = null;
         dateRange.to = null;
-        document.getElementById('date-from').value = '';
-        document.getElementById('date-to').value = '';
+        syncDateInputs('', '');
     } else if (preset === 'custom') {
-        const fromVal = document.getElementById('date-from').value;
-        const toVal = document.getElementById('date-to').value;
+        const fromVal = document.getElementById('date-from')?.value || document.querySelector('.date-from-sync')?.value || '';
+        const toVal = document.getElementById('date-to')?.value || document.querySelector('.date-to-sync')?.value || '';
         dateRange.from = fromVal ? fromVal + 'T00:00:00' : null;
         dateRange.to = toVal ? toVal + 'T23:59:59' : null;
-        // Remove active from preset buttons
         document.querySelectorAll('.date-range-btn').forEach(b => b.classList.remove('active'));
     } else {
         const days = parseInt(preset);
@@ -1758,8 +1771,7 @@ function setDateRange(preset) {
         fromDate.setDate(fromDate.getDate() - days);
         dateRange.from = fromDate.toISOString().split('T')[0] + 'T00:00:00';
         dateRange.to = null;
-        document.getElementById('date-from').value = fromDate.toISOString().split('T')[0];
-        document.getElementById('date-to').value = now.toISOString().split('T')[0];
+        syncDateInputs(fromDate.toISOString().split('T')[0], now.toISOString().split('T')[0]);
     }
 
     if (currentPlayerId) reloadDashboardData(currentPlayerId);

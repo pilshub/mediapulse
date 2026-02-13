@@ -6,28 +6,31 @@
 [data-tooltip] {
     position: relative;
 }
+[data-tooltip]:hover {
+    z-index: 90;
+}
 [data-tooltip]::after {
     content: attr(data-tooltip);
     position: absolute;
     bottom: calc(100% + 8px);
     left: 50%;
     transform: translateX(-50%);
-    background: #1a1a1a;
+    background: #111;
     color: #e7e9ea;
-    border: 1px solid #333;
+    border: 1px solid #444;
     border-radius: 8px;
-    padding: 6px 12px;
+    padding: 8px 12px;
     font-size: 11px;
     font-weight: 400;
     line-height: 1.4;
     white-space: normal;
     max-width: 260px;
     width: max-content;
-    z-index: 100;
+    z-index: 9999;
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.15s;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.7);
 }
 [data-tooltip]:hover::after {
     opacity: 1;

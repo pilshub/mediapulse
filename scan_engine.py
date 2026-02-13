@@ -277,16 +277,15 @@ async def _check_alerts(player_id, press_items, social_items):
     # 1. High volume of negative press
     negative_press = [i for i in press_items if i.get("sentiment_label") == "negativo"]
     if len(negative_press) >= 3:
-        detail = _build_detail_lines(negative_press, "title")
         sources = list(set(i.get("source", "?") for i in negative_press))
         await db.insert_alert(
             player_id, "prensa_negativa", "alta",
-            f"{len(negative_press)} noticias negativas en {', '.join(sources[:4])}",
-            f"Titulares negativos detectados:\n{detail}",
+            f"Detectada cobertura negativa en prensa ({len(negative_press)} noticias)",
+            f"Se han identificado {len(negative_press)} noticias con sentimiento negativo en {', '.join(sources[:4])}. Revisar las fuentes para evaluar si se trata de una narrativa puntual o una tendencia sostenida.",
             {"count": len(negative_press),
              "titles": [i.get("title", "") for i in negative_press[:5]],
              "urls": [i.get("url", "") for i in negative_press[:5]],
-             "sources": sources},
+             "sources_list": [i.get("source", "") for i in negative_press[:5]]},
         )
         count += 1
 
@@ -294,17 +293,16 @@ async def _check_alerts(player_id, press_items, social_items):
     if social_items:
         negative_social = [i for i in social_items if i.get("sentiment_label") == "negativo"]
         if len(negative_social) > len(social_items) * 0.4 and len(social_items) > 5:
-            # Group by platform and find most common negative themes
             platforms = {}
             for item in negative_social:
                 p = item.get("platform", "?")
                 platforms[p] = platforms.get(p, 0) + 1
-            platform_str = ", ".join(f"{p}: {c}" for p, c in sorted(platforms.items(), key=lambda x: -x[1])[:4])
-            detail = _build_detail_lines(negative_social, "text")
+            top_platform = max(platforms, key=platforms.get) if platforms else "redes"
+            ratio_pct = round(len(negative_social) / len(social_items) * 100)
             await db.insert_alert(
                 player_id, "redes_negativas", "alta",
-                f"Sentimiento negativo en redes ({len(negative_social)}/{len(social_items)} menciones)",
-                f"Plataformas afectadas: {platform_str}\nEjemplos:\n{detail}",
+                f"Sentimiento negativo dominante en redes ({ratio_pct}% de menciones)",
+                f"El {ratio_pct}% de las menciones en redes sociales tienen sentimiento negativo. La plataforma mas afectada es {top_platform}. Esto puede reflejar descontento de la aficion o reaccion a eventos recientes.",
                 {"negative_ratio": round(len(negative_social) / len(social_items), 2),
                  "platforms": platforms,
                  "samples": [_excerpt(i.get("text", "")) for i in negative_social[:5]],
@@ -319,53 +317,54 @@ async def _check_alerts(player_id, press_items, social_items):
         for item in press_items:
             s = item.get("source", "?")
             sources[s] = sources.get(s, 0) + 1
-        source_str = ", ".join(f"{s}: {c}" for s, c in sorted(sources.items(), key=lambda x: -x[1])[:5])
+        top_source = max(sources, key=sources.get) if sources else "prensa"
         await db.insert_alert(
             player_id, "trending", "media",
-            f"Alta presencia mediatica: {len(press_items)} noticias",
-            f"Cobertura por medio: {source_str}",
+            f"Alta presencia mediatica detectada ({len(press_items)} noticias)",
+            f"El jugador aparece en {len(press_items)} noticias de {len(sources)} medios diferentes. El medio con mayor cobertura es {top_source} ({sources.get(top_source, 0)} noticias). Indica un momento de alta visibilidad.",
             {"count": len(press_items), "sources": sources,
              "titles": [i.get("title", "") for i in press_items[:5]],
-             "urls": [i.get("url", "") for i in press_items[:5]]},
+             "urls": [i.get("url", "") for i in press_items[:5]],
+             "sources_list": [i.get("source", "") for i in press_items[:5]]},
         )
         count += 1
 
     # 4. Transfer rumor detected
     transfer_items = [i for i in press_items if "fichaje" in (i.get("topics") or [])]
     if transfer_items:
-        detail = _build_detail_lines(transfer_items, "title")
         sources = list(set(i.get("source", "?") for i in transfer_items))
         await db.insert_alert(
             player_id, "rumor_fichaje", "alta",
-            f"Rumor de fichaje en {', '.join(sources[:3])} ({len(transfer_items)} noticias)",
-            f"Noticias de fichaje detectadas:\n{detail}",
+            f"Detectados rumores de fichaje ({len(transfer_items)} noticias)",
+            f"Se han identificado {len(transfer_items)} noticias relacionadas con un posible traspaso del jugador en {', '.join(sources[:3])}. Evaluar credibilidad de las fuentes y contexto del mercado.",
             {"titles": [i.get("title", "") for i in transfer_items[:5]],
              "urls": [i.get("url", "") for i in transfer_items[:5]],
-             "sources": sources},
+             "sources_list": [i.get("source", "") for i in transfer_items[:5]]},
         )
         count += 1
 
     # 5. Injury mention detected
     injury_items = [i for i in press_items if "lesion" in (i.get("topics") or [])]
     if injury_items:
-        detail = _build_detail_lines(injury_items, "title")
+        sources = list(set(i.get("source", "?") for i in injury_items))
         await db.insert_alert(
             player_id, "lesion", "alta",
-            f"Posible lesion ({len(injury_items)} noticias)",
-            f"Menciones de lesion detectadas:\n{detail}",
+            f"Posible lesion mencionada en prensa ({len(injury_items)} noticias)",
+            f"Se han detectado {len(injury_items)} noticias que mencionan una posible lesion del jugador en {', '.join(sources[:3])}. Confirmar con fuentes oficiales del club.",
             {"titles": [i.get("title", "") for i in injury_items[:5]],
-             "urls": [i.get("url", "") for i in injury_items[:5]]},
+             "urls": [i.get("url", "") for i in injury_items[:5]],
+             "sources_list": [i.get("source", "") for i in injury_items[:5]]},
         )
         count += 1
 
     # 6. Controversy/polemic detected
     polemic_items = [i for i in press_items + social_items if "polemica" in (i.get("topics") or [])]
     if len(polemic_items) >= 2:
-        detail = _build_detail_lines(polemic_items, "text")
+        n_sources = len(set(i.get('platform', i.get('source', '?')) for i in polemic_items))
         await db.insert_alert(
             player_id, "polemica", "alta",
-            f"Polemica detectada ({len(polemic_items)} menciones en {len(set(i.get('platform', i.get('source', '?')) for i in polemic_items))} fuentes)",
-            f"Menciones polemicas:\n{detail}",
+            f"Polemica detectada en {n_sources} fuentes ({len(polemic_items)} menciones)",
+            f"Se han encontrado {len(polemic_items)} menciones polemicas del jugador en {n_sources} fuentes distintas. Monitorizar la evolucion para valorar impacto reputacional.",
             {"count": len(polemic_items),
              "samples": [_excerpt(i.get("text", "") or i.get("title", "")) for i in polemic_items[:5]],
              "urls": [i.get("url", "") for i in polemic_items[:5]],
