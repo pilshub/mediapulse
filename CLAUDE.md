@@ -347,10 +347,16 @@ TELEGRAM_CHANNELS=canal1,canal2
 5. **Comparativa Multi-Jugador**: Endpoint + UI modal para comparar 2+ jugadores side-by-side con indice de imagen, metricas, temas top.
 6. **Escaneo Profundo Inicial**: Primer escaneo de un jugador nuevo usa 3x los limites normales (FIRST_SCAN_MULTIPLIER). Se detecta automaticamente via scan_log count.
 
+## DEPLOY
+
+- **URL produccion:** https://mediapulse.up.railway.app/
+- **Plataforma:** Railway (HTTPS incluido)
+- **Health check:** https://mediapulse.up.railway.app/health
+
 ## PENDIENTE PARA PRODUCCION
 
-- [ ] Deploy (Railway, VPS, o similar)
-- [ ] HTTPS + dominio
+- [x] Deploy (Railway)
+- [x] HTTPS + dominio
 - [ ] Autenticacion basica para el dashboard
 - [ ] Backup automatico de SQLite
 - [ ] Monitoring/uptime

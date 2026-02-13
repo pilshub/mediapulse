@@ -418,24 +418,26 @@ function renderSummaryCards(s, delta) {
     }
 
     const cards = [
-        { label: 'Noticias', value: s.press_count, delta: deltaHtml('press_count'), icon: 'N', color: 'accent' },
-        { label: 'Sent. Prensa', value: sentimentText(s.press_sentiment), delta: deltaHtml('press_sentiment'), icon: 'S', color: sentimentColor(s.press_sentiment) },
-        { label: 'Menciones', value: s.mentions_count, delta: deltaHtml('mentions_count'), icon: 'M', color: 'accent' },
-        { label: 'Sent. Redes', value: sentimentText(s.social_sentiment), delta: deltaHtml('social_sentiment'), icon: 'R', color: sentimentColor(s.social_sentiment) },
-        { label: 'Posts Jugador', value: s.posts_count, delta: '', icon: 'P', color: 'accent' },
-        { label: 'Engagement', value: s.avg_engagement ? (s.avg_engagement * 100).toFixed(2) + '%' : '-', delta: '', icon: 'E', color: 'accent' },
-        { label: 'Sent. Jugador', value: sentimentText(s.player_sentiment), delta: '', icon: 'J', color: sentimentColor(s.player_sentiment) },
-        { label: 'Alertas', value: s.alerts_count, delta: '', icon: '!', color: s.alerts_count > 0 ? 'negative' : 'positive' },
+        { label: 'Noticias', value: s.press_count, delta: deltaHtml('press_count'), icon: 'N', color: 'accent', tab: 'prensa', tooltip: 'Total de noticias en prensa digital que mencionan al jugador' },
+        { label: 'Sent. Prensa', value: sentimentText(s.press_sentiment), delta: deltaHtml('press_sentiment'), icon: 'S', color: sentimentColor(s.press_sentiment), tab: 'prensa', tooltip: 'Sentimiento medio de la prensa (-1.0 negativo a +1.0 positivo)' },
+        { label: 'Menciones', value: s.mentions_count, delta: deltaHtml('mentions_count'), icon: 'M', color: 'accent', tab: 'redes', tooltip: 'Menciones en redes: X, Reddit, YouTube, TikTok, Instagram, Telegram' },
+        { label: 'Sent. Redes', value: sentimentText(s.social_sentiment), delta: deltaHtml('social_sentiment'), icon: 'R', color: sentimentColor(s.social_sentiment), tab: 'redes', tooltip: 'Sentimiento medio en redes sociales (-1.0 a +1.0)' },
+        { label: 'Posts Jugador', value: s.posts_count, delta: '', icon: 'P', color: 'accent', tab: 'actividad', tooltip: 'Publicaciones propias del jugador en sus cuentas' },
+        { label: 'Engagement', value: s.avg_engagement ? (s.avg_engagement * 100).toFixed(2) + '%' : 'Sin datos', delta: '', icon: 'E', color: 'accent', tab: 'actividad', tooltip: s.avg_engagement ? 'Tasa de interaccion media: (likes+comentarios+shares)/vistas' : 'Sin datos. Configura handles del jugador para rastrear sus publicaciones.' },
+        { label: 'Sent. Jugador', value: sentimentText(s.player_sentiment), delta: '', icon: 'J', color: sentimentColor(s.player_sentiment), tab: 'actividad', tooltip: 'Sentimiento de las publicaciones propias del jugador' },
+        { label: 'Alertas', value: s.alerts_count, delta: '', icon: '!', color: s.alerts_count > 0 ? 'negative' : 'positive', tab: 'alertas', tooltip: 'Alertas activas: fichajes, lesiones, polemica, inactividad' },
     ];
 
-    document.getElementById('summary-cards').innerHTML = cards.map((c, i) => `
-        <div class="bg-dark-700 rounded-xl p-3 sm:p-4 border border-gray-800 fade-in" style="animation-delay: ${i * 50}ms">
+    document.getElementById('summary-cards').innerHTML = cards.map((c, i) => {
+        const isEmpty = (c.value === 0 || c.value === 'Sin datos' || c.value === '-');
+        return `
+        <div class="bg-dark-700 rounded-xl p-3 sm:p-4 border border-gray-800 fade-in cursor-pointer hover:border-gray-600 transition ${isEmpty ? 'opacity-60' : ''}" style="animation-delay: ${i * 50}ms" onclick="switchTab('${c.tab}')" data-tooltip="${c.tooltip}" data-tooltip-pos="below">
             <div class="flex items-center justify-between mb-1 sm:mb-2">
                 <span class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider">${c.label}</span>
             </div>
             <div class="text-lg sm:text-2xl font-bold text-white">${c.value ?? '-'}${c.delta}</div>
         </div>
-    `).join('');
+    `}).join('');
 }
 
 // -- Press Tab --
@@ -642,7 +644,7 @@ function renderActivity(items, stats, activityPeaks) {
                         <input type="text" placeholder="Buscar en posts..." class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-accent focus:outline-none" oninput="filterList(this.value, 'activity')">
                     </div>
                     <div class="item-list max-h-[500px] sm:max-h-[600px] overflow-y-auto" id="activity-list">
-                        ${items.length === 0 ? '<div class="p-8 text-center text-gray-600">Sin posts</div>' :
+                        ${items.length === 0 ? '<div class="p-8 text-center"><p class="text-gray-500 text-sm mb-2">Sin datos de actividad del jugador</p><p class="text-gray-600 text-xs">Configura los handles de Twitter, Instagram o TikTok para rastrear sus publicaciones.</p></div>' :
                         items.map(item => `
                             <div class="p-3 sm:p-4 card-hover search-item" data-search="${escapeHtml((item.text || '') + ' ' + (item.platform || '') + ' ' + (item.media_type || '')).toLowerCase()}">
                                 <div class="flex items-start gap-2 sm:gap-3">
@@ -778,12 +780,38 @@ function renderAlerts(items) {
             </div>
             <div class="item-list">
                 ${filtered.length === 0 ? '<div class="p-8 text-center text-gray-600">Sin alertas - todo tranquilo</div>' :
-                filtered.map(item => `
+                filtered.map(item => {
+                    let sourcesHtml = '';
+                    try {
+                        const data = typeof item.data_json === 'string' ? JSON.parse(item.data_json) : item.data_json;
+                        if (data) {
+                            const titles = data.titles || data.samples || [];
+                            const urls = data.urls || [];
+                            const platformsList = data.platforms_list || [];
+                            if (titles.length > 0) {
+                                sourcesHtml = '<div class="mt-3 pt-3 border-t border-gray-800 space-y-1.5">' +
+                                    '<div class="text-[10px] text-gray-600 uppercase tracking-wider mb-1">Fuentes</div>' +
+                                    titles.slice(0, 5).map((t, idx) => {
+                                        const url = urls[idx] || '';
+                                        const src = platformsList[idx] || (data.sources && Array.isArray(data.sources) ? data.sources[0] : '') || '';
+                                        const badge = src ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-dark-500 text-gray-500 mr-1.5 flex-shrink-0">${escapeHtml(src)}</span>` : '';
+                                        if (url) {
+                                            return `<div class="flex items-start gap-1">${badge}<a href="${escapeHtml(url)}" target="_blank" class="text-xs text-gray-400 hover:text-accent transition truncate">${escapeHtml(t)}</a></div>`;
+                                        }
+                                        return `<div class="flex items-start gap-1">${badge}<span class="text-xs text-gray-500 truncate">${escapeHtml(t)}</span></div>`;
+                                    }).join('') +
+                                    (titles.length > 5 ? `<div class="text-[10px] text-gray-600">... y ${titles.length - 5} mas</div>` : '') +
+                                '</div>';
+                            }
+                        }
+                    } catch(e) {}
+
+                    return `
                     <div class="p-4 card-hover alert-${item.severity || 'baja'} ${item.read ? 'alert-read' : 'alert-unread'}" id="alert-${item.id}">
                         <div class="flex items-start gap-3">
-                            <span class="text-xl">${item.severity === 'alta' ? '&#9888;' : item.severity === 'media' ? '&#9432;' : '&#8505;'}</span>
+                            <span class="text-xl flex-shrink-0">${item.severity === 'alta' ? '&#9888;' : item.severity === 'media' ? '&#9432;' : '&#8505;'}</span>
                             <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                <div class="flex items-center gap-2 mb-2 flex-wrap">
                                     <span class="text-sm font-semibold text-white">${escapeHtml(item.title)}</span>
                                     <span class="text-xs px-2 py-0.5 rounded-full ${
                                         item.severity === 'alta' ? 'bg-red-500/20 text-red-400' :
@@ -792,30 +820,17 @@ function renderAlerts(items) {
                                     }">${item.severity}</span>
                                     ${!item.read ? '<span class="w-2 h-2 rounded-full bg-accent"></span>' : ''}
                                 </div>
-                                <div class="text-sm text-gray-400 whitespace-pre-line">${escapeHtml(item.message)}</div>
-                                ${(() => {
-                                    try {
-                                        const data = typeof item.data_json === 'string' ? JSON.parse(item.data_json) : item.data_json;
-                                        if (!data) return '';
-                                        const titles = data.titles || data.samples || [];
-                                        if (titles.length === 0) return '';
-                                        return '<div class="mt-2 pt-2 border-t border-gray-800 space-y-1">' +
-                                            titles.slice(0, 4).map(t =>
-                                                '<div class="text-xs text-gray-500 truncate">' + escapeHtml(t) + '</div>'
-                                            ).join('') +
-                                            (titles.length > 4 ? '<div class="text-xs text-gray-600">... y ' + (titles.length - 4) + ' mas</div>' : '') +
-                                        '</div>';
-                                    } catch(e) { return ''; }
-                                })()}
+                                <p class="text-xs text-gray-400 leading-relaxed">${escapeHtml(item.message)}</p>
+                                ${sourcesHtml}
                                 <div class="flex items-center gap-3 mt-2">
-                                    <span class="text-xs text-gray-600">${formatDate(item.created_at)}</span>
-                                    ${!item.read ? `<button onclick="markAlertRead(${item.id})" class="text-xs text-accent hover:underline">Marcar leida</button>` : ''}
-                                    <button onclick="dismissAlert(${item.id})" class="text-xs text-red-400 hover:underline">Descartar</button>
+                                    <span class="text-[10px] text-gray-600">${formatDate(item.created_at)}</span>
+                                    ${!item.read ? `<button onclick="markAlertRead(${item.id})" class="text-xs text-accent hover:underline touch-target">Marcar leida</button>` : ''}
+                                    <button onclick="dismissAlert(${item.id})" class="text-xs text-red-400 hover:underline touch-target">Descartar</button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                `).join('')}
+                `}).join('')}
             </div>
         </div>
     `;
@@ -1069,11 +1084,11 @@ function renderImageIndex(idx, history) {
     const label = score >= 70 ? 'POSITIVO' : score >= 40 ? 'NEUTRO' : 'NEGATIVO';
 
     const components = [
-        { name: 'Volumen', value: idx.volume, weight: '20%' },
-        { name: 'Sent. Prensa', value: idx.press_sentiment, weight: '25%' },
-        { name: 'Sent. Redes', value: idx.social_sentiment, weight: '25%' },
-        { name: 'Engagement', value: idx.engagement, weight: '15%' },
-        { name: 'Sin Controversia', value: idx.no_controversy, weight: '15%' },
+        { name: 'Volumen', value: idx.volume, weight: '20%', tooltip: 'Volumen de noticias y menciones. Mas cobertura = mejor score.' },
+        { name: 'Sent. Prensa', value: idx.press_sentiment, weight: '25%', tooltip: 'Score de sentimiento en prensa. 100=todo positivo, 0=todo negativo.' },
+        { name: 'Sent. Redes', value: idx.social_sentiment, weight: '25%', tooltip: 'Score de sentimiento en redes. 100=todo positivo, 0=todo negativo.' },
+        { name: 'Engagement', value: idx.engagement, weight: '15%', tooltip: 'Interaccion del publico con los posts del jugador.' },
+        { name: 'Sin Controversia', value: idx.no_controversy, weight: '15%', tooltip: 'Ausencia de polemica. 100=sin controversia, 0=mucha polemica.' },
     ];
 
     // Build sparkline SVG from history
@@ -1116,7 +1131,7 @@ function renderImageIndex(idx, history) {
                     ${components.map(c => {
                         const cColor = c.value >= 70 ? '#00ba7c' : c.value >= 40 ? '#ffd166' : '#f4212e';
                         return `
-                        <div class="text-center">
+                        <div class="text-center" data-tooltip="${c.tooltip}">
                             <div class="text-base sm:text-lg font-bold" style="color:${cColor}">${Math.round(c.value)}</div>
                             <div class="text-[10px] text-gray-500">${c.name}</div>
                             <div class="text-[9px] text-gray-700">${c.weight}</div>
@@ -1944,10 +1959,16 @@ function sentimentColor(val) {
 }
 
 function platformIcon(platform) {
-    return {
-        twitter: 'X', reddit: 'R', instagram: 'IG',
-        youtube: 'YT', tiktok: 'TT', telegram: 'TG',
-    }[platform] || platform;
+    const s = 16;
+    const icons = {
+        twitter: `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`,
+        reddit: `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 01-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.1 3.1 0 01.042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 014.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 01.14-.197.35.35 0 01.238-.042l2.906.617a1.214 1.214 0 011.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 00-.231.094.33.33 0 000 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 000-.463.327.327 0 00-.462 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 00-.205-.094z"/></svg>`,
+        instagram: `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>`,
+        youtube: `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>`,
+        tiktok: `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>`,
+        telegram: `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>`,
+    };
+    return icons[platform] || `<span class="text-xs font-bold">${platform || '?'}</span>`;
 }
 
 function renderPlatformBreakdown(items) {

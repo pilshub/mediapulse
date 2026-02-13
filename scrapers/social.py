@@ -31,6 +31,7 @@ def _filter_by_relevance(items, player_name):
     """Post-scrape filter: discard items that don't mention the player's surname.
     This catches TikTok/YouTube/Reddit false positives like 'Venezia FC' general
     news or 'Juan Antonio Casas' when searching for 'Antonio Casas'.
+    Extra strict for TikTok due to fuzzy search behavior.
     """
     if not player_name or not items:
         return items
@@ -51,16 +52,35 @@ def _filter_by_relevance(items, player_name):
     filtered = []
     removed = 0
     for item in items:
-        text = _normalize(
-            (item.get("text", "") or "") + " " +
-            (item.get("title", "") or "") + " " +
-            (item.get("author", "") or "")
-        )
-        # Must contain surname AND (first name or player handle)
-        if surname in text and (first_name in text or len(name_parts) == 1):
+        platform = item.get("platform", "")
+
+        # TikTok: stricter filtering - must appear in actual caption
+        if platform == "tiktok":
+            caption = _normalize(item.get("text", "") or "")
+            # Skip very short/empty captions (often generic/unrelated)
+            if len(caption.strip()) < 15:
+                removed += 1
+                continue
+            # Surname must appear in the caption itself, not just metadata
+            if surname not in caption:
+                removed += 1
+                continue
+            # Require first name too for confidence
+            if first_name not in caption:
+                removed += 1
+                continue
             filtered.append(item)
         else:
-            removed += 1
+            # Standard filter for other platforms
+            text = _normalize(
+                (item.get("text", "") or "") + " " +
+                (item.get("title", "") or "") + " " +
+                (item.get("author", "") or "")
+            )
+            if surname in text and (first_name in text or len(name_parts) == 1):
+                filtered.append(item)
+            else:
+                removed += 1
 
     if removed:
         log.info(f"[social] Relevance filter: {len(items)} -> {len(filtered)} "

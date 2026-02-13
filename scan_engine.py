@@ -283,7 +283,9 @@ async def _check_alerts(player_id, press_items, social_items):
             player_id, "prensa_negativa", "alta",
             f"{len(negative_press)} noticias negativas en {', '.join(sources[:4])}",
             f"Titulares negativos detectados:\n{detail}",
-            {"count": len(negative_press), "titles": [i.get("title", "") for i in negative_press[:5]],
+            {"count": len(negative_press),
+             "titles": [i.get("title", "") for i in negative_press[:5]],
+             "urls": [i.get("url", "") for i in negative_press[:5]],
              "sources": sources},
         )
         count += 1
@@ -305,7 +307,9 @@ async def _check_alerts(player_id, press_items, social_items):
                 f"Plataformas afectadas: {platform_str}\nEjemplos:\n{detail}",
                 {"negative_ratio": round(len(negative_social) / len(social_items), 2),
                  "platforms": platforms,
-                 "samples": [_excerpt(i.get("text", "")) for i in negative_social[:5]]},
+                 "samples": [_excerpt(i.get("text", "")) for i in negative_social[:5]],
+                 "urls": [i.get("url", "") for i in negative_social[:5]],
+                 "platforms_list": [i.get("platform", "") for i in negative_social[:5]]},
             )
             count += 1
 
@@ -320,7 +324,9 @@ async def _check_alerts(player_id, press_items, social_items):
             player_id, "trending", "media",
             f"Alta presencia mediatica: {len(press_items)} noticias",
             f"Cobertura por medio: {source_str}",
-            {"count": len(press_items), "sources": sources},
+            {"count": len(press_items), "sources": sources,
+             "titles": [i.get("title", "") for i in press_items[:5]],
+             "urls": [i.get("url", "") for i in press_items[:5]]},
         )
         count += 1
 
@@ -333,7 +339,9 @@ async def _check_alerts(player_id, press_items, social_items):
             player_id, "rumor_fichaje", "alta",
             f"Rumor de fichaje en {', '.join(sources[:3])} ({len(transfer_items)} noticias)",
             f"Noticias de fichaje detectadas:\n{detail}",
-            {"titles": [i.get("title", "") for i in transfer_items[:5]], "sources": sources},
+            {"titles": [i.get("title", "") for i in transfer_items[:5]],
+             "urls": [i.get("url", "") for i in transfer_items[:5]],
+             "sources": sources},
         )
         count += 1
 
@@ -345,7 +353,8 @@ async def _check_alerts(player_id, press_items, social_items):
             player_id, "lesion", "alta",
             f"Posible lesion ({len(injury_items)} noticias)",
             f"Menciones de lesion detectadas:\n{detail}",
-            {"titles": [i.get("title", "") for i in injury_items[:5]]},
+            {"titles": [i.get("title", "") for i in injury_items[:5]],
+             "urls": [i.get("url", "") for i in injury_items[:5]]},
         )
         count += 1
 
@@ -358,7 +367,9 @@ async def _check_alerts(player_id, press_items, social_items):
             f"Polemica detectada ({len(polemic_items)} menciones en {len(set(i.get('platform', i.get('source', '?')) for i in polemic_items))} fuentes)",
             f"Menciones polemicas:\n{detail}",
             {"count": len(polemic_items),
-             "samples": [_excerpt(i.get("text", "") or i.get("title", "")) for i in polemic_items[:5]]},
+             "samples": [_excerpt(i.get("text", "") or i.get("title", "")) for i in polemic_items[:5]],
+             "urls": [i.get("url", "") for i in polemic_items[:5]],
+             "platforms_list": [i.get("platform", i.get("source", "")) for i in polemic_items[:5]]},
         )
         count += 1
 

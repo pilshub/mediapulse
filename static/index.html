@@ -178,6 +178,22 @@
             <p id="exec-summary-text" class="text-xs sm:text-sm text-gray-300 leading-relaxed"></p>
         </div>
 
+        <!-- Date Range Filter (arriba para que se vea el periodo) -->
+        <div id="date-range-bar" class="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4 bg-dark-800 rounded-xl p-2 sm:p-3 border border-gray-800">
+            <span class="text-xs text-gray-500 uppercase tracking-wider">Periodo:</span>
+            <div class="flex gap-1 sm:gap-2 flex-wrap">
+                <button onclick="setDateRange('7d')" data-range="7d" class="date-range-btn active touch-target" data-tooltip="Ultimos 7 dias">7d</button>
+                <button onclick="setDateRange('30d')" data-range="30d" class="date-range-btn touch-target" data-tooltip="Ultimos 30 dias">30d</button>
+                <button onclick="setDateRange('90d')" data-range="90d" class="date-range-btn touch-target" data-tooltip="Ultimos 90 dias">90d</button>
+                <button onclick="setDateRange('all')" data-range="all" class="date-range-btn touch-target" data-tooltip="Todo el historico disponible">Todo</button>
+            </div>
+            <div class="flex items-center gap-2 w-full sm:w-auto sm:ml-auto mt-1 sm:mt-0">
+                <input type="date" id="date-from" class="bg-dark-900 border border-gray-700 rounded-lg px-2 py-2 text-xs text-white focus:border-accent focus:outline-none flex-1 sm:flex-none" onchange="setDateRange('custom')">
+                <span class="text-gray-600 text-xs">a</span>
+                <input type="date" id="date-to" class="bg-dark-900 border border-gray-700 rounded-lg px-2 py-2 text-xs text-white focus:border-accent focus:outline-none flex-1 sm:flex-none" onchange="setDateRange('custom')">
+            </div>
+        </div>
+
         <!-- Summary Cards -->
         <div id="summary-cards" class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6"></div>
 
@@ -202,32 +218,16 @@
             <div id="global-search-results" class="hidden absolute top-full left-0 right-0 mt-1 bg-dark-700 border border-gray-700 rounded-xl max-h-80 overflow-y-auto z-40 shadow-xl"></div>
         </div>
 
-        <!-- Date Range Filter -->
-        <div id="date-range-bar" class="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4 bg-dark-800 rounded-xl p-2 sm:p-3 border border-gray-800">
-            <span class="text-xs text-gray-500 uppercase tracking-wider">Periodo:</span>
-            <div class="flex gap-1 sm:gap-2 flex-wrap">
-                <button onclick="setDateRange('7d')" data-range="7d" class="date-range-btn active touch-target">7d</button>
-                <button onclick="setDateRange('30d')" data-range="30d" class="date-range-btn touch-target">30d</button>
-                <button onclick="setDateRange('90d')" data-range="90d" class="date-range-btn touch-target">90d</button>
-                <button onclick="setDateRange('all')" data-range="all" class="date-range-btn touch-target">Todo</button>
-            </div>
-            <div class="flex items-center gap-2 w-full sm:w-auto sm:ml-auto mt-1 sm:mt-0">
-                <input type="date" id="date-from" class="bg-dark-900 border border-gray-700 rounded-lg px-2 py-2 text-xs text-white focus:border-accent focus:outline-none flex-1 sm:flex-none" onchange="setDateRange('custom')">
-                <span class="text-gray-600 text-xs">a</span>
-                <input type="date" id="date-to" class="bg-dark-900 border border-gray-700 rounded-lg px-2 py-2 text-xs text-white focus:border-accent focus:outline-none flex-1 sm:flex-none" onchange="setDateRange('custom')">
-            </div>
-        </div>
-
         <!-- Tabs (desktop) -->
         <div class="desktop-tab-bar flex gap-1 mb-4 sm:mb-6 bg-dark-800 rounded-xl p-1 overflow-x-auto scrollbar-hide -mx-3 sm:mx-0 px-3 sm:px-1">
-            <button onclick="switchTab('prensa')" data-tab="prensa" class="tab-btn active px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Prensa</button>
-            <button onclick="switchTab('redes')" data-tab="redes" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Menciones</button>
-            <button onclick="switchTab('actividad')" data-tab="actividad" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Sus Redes</button>
-            <button onclick="switchTab('alertas')" data-tab="alertas" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Alertas <span id="alert-badge" class="hidden ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full"></span></button>
-            <button onclick="switchTab('historial')" data-tab="historial" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Historial</button>
-            <button onclick="switchTab('historico')" data-tab="historico" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Graficos</button>
-            <button onclick="switchTab('inteligencia')" data-tab="inteligencia" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Inteligencia <span id="risk-badge" class="hidden ml-1 text-xs px-1.5 py-0.5 rounded-full"></span></button>
-            <button onclick="switchTab('informe')" data-tab="informe" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target">Informe</button>
+            <button onclick="switchTab('prensa')" data-tab="prensa" class="tab-btn active px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Noticias de prensa deportiva digital" data-tooltip-pos="below">Prensa</button>
+            <button onclick="switchTab('redes')" data-tab="redes" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Menciones de terceros en redes sociales" data-tooltip-pos="below">Menciones</button>
+            <button onclick="switchTab('actividad')" data-tab="actividad" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Publicaciones propias del jugador" data-tooltip-pos="below">Sus Redes</button>
+            <button onclick="switchTab('alertas')" data-tab="alertas" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Alertas automaticas: fichajes, lesiones, polemica" data-tooltip-pos="below">Alertas <span id="alert-badge" class="hidden ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full"></span></button>
+            <button onclick="switchTab('historial')" data-tab="historial" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Historial de escaneos y comparacion" data-tooltip-pos="below">Historial</button>
+            <button onclick="switchTab('historico')" data-tab="historico" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Graficos de evolucion temporal" data-tooltip-pos="below">Graficos</button>
+            <button onclick="switchTab('inteligencia')" data-tab="inteligencia" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Analisis de riesgo con IA y narrativas" data-tooltip-pos="below">Inteligencia <span id="risk-badge" class="hidden ml-1 text-xs px-1.5 py-0.5 rounded-full"></span></button>
+            <button onclick="switchTab('informe')" data-tab="informe" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Informes semanales con recomendaciones" data-tooltip-pos="below">Informe</button>
         </div>
 
         <!-- Tab Content -->
