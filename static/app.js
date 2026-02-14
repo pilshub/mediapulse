@@ -385,9 +385,10 @@ function renderTopicsAndBrands(report) {
         seleccion: '#10b981', tactica: '#6366f1', cantera: '#14b8a6', economia: '#f97316', otro: '#6b7280',
     };
 
-    // Word cloud: scale font from 13px to 32px based on frequency
+    // Word cloud: scale font based on frequency (smaller on mobile)
     const maxCount = Math.max(...Object.values(topics), 1);
-    const minFont = 13, maxFont = 32;
+    const isMobile = window.innerWidth < 640;
+    const minFont = isMobile ? 11 : 13, maxFont = isMobile ? 22 : 32;
     document.getElementById('topics-container').innerHTML = Object.entries(topics).map(([t, c]) => {
         const color = topicColors[t] || '#6b7280';
         const ratio = c / maxCount;
@@ -457,7 +458,7 @@ function renderPress(items, stats) {
                         </div>
                         <input type="text" placeholder="Buscar en noticias..." class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-accent focus:outline-none" oninput="filterList(this.value, 'press')">
                     </div>
-                    <div class="item-list max-h-[500px] sm:max-h-[600px] overflow-y-auto" id="press-list">
+                    <div class="item-list max-h-[60vh] sm:max-h-[600px] overflow-y-auto" id="press-list">
                         ${items.length === 0 ? '<div class="p-8 text-center text-gray-600">Sin noticias</div>' :
                         items.map(item => `
                             <div class="p-3 sm:p-4 card-hover search-item" data-search="${escapeHtml((item.source || '') + ' ' + (item.title || '') + ' ' + (item.sentiment_label || '')).toLowerCase()}">
@@ -527,7 +528,7 @@ function renderSocial(items, stats, sentByPlatform, topInfluencers) {
                             }).join('')}
                         </div>
                     </div>
-                    <div class="item-list max-h-[500px] sm:max-h-[600px] overflow-y-auto" id="social-list">
+                    <div class="item-list max-h-[60vh] sm:max-h-[600px] overflow-y-auto" id="social-list">
                         ${items.length === 0 ? '<div class="p-8 text-center text-gray-600">Sin menciones</div>' :
                         items.map(item => `
                             <div class="p-3 sm:p-4 card-hover search-item" data-search="${escapeHtml((item.author || '') + ' ' + (item.text || '') + ' ' + (item.platform || '')).toLowerCase()}">
@@ -643,7 +644,7 @@ function renderActivity(items, stats, activityPeaks) {
                         <p class="text-[10px] sm:text-xs text-gray-500 mb-2">Publicaciones propias del jugador en Twitter, Instagram y TikTok</p>
                         <input type="text" placeholder="Buscar en posts..." class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-accent focus:outline-none" oninput="filterList(this.value, 'activity')">
                     </div>
-                    <div class="item-list max-h-[500px] sm:max-h-[600px] overflow-y-auto" id="activity-list">
+                    <div class="item-list max-h-[60vh] sm:max-h-[600px] overflow-y-auto" id="activity-list">
                         ${items.length === 0 ? '<div class="p-8 text-center"><p class="text-gray-500 text-sm mb-2">Sin datos de actividad del jugador</p><p class="text-gray-600 text-xs">Configura los handles de Twitter, Instagram o TikTok para rastrear sus publicaciones.</p></div>' :
                         items.map(item => `
                             <div class="p-3 sm:p-4 card-hover search-item" data-search="${escapeHtml((item.text || '') + ' ' + (item.platform || '') + ' ' + (item.media_type || '')).toLowerCase()}">
@@ -800,7 +801,7 @@ function renderAlerts(items) {
                                         const url = urls[idx] || '';
                                         const src = platformsList[idx] || '';
                                         const badge = src ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-dark-500 text-gray-500 flex-shrink-0">${escapeHtml(src)}</span>` : '';
-                                        return `<div class="bg-dark-900 rounded-lg p-2.5">
+                                        return `<div class="bg-dark-900 rounded-lg p-2.5 alert-source-card">
                                             <div class="flex items-center gap-1.5 mb-1">${badge}</div>
                                             <p class="text-xs text-gray-300 leading-relaxed">${escapeHtml(t)}</p>
                                             ${url ? `<a href="${escapeHtml(url)}" target="_blank" class="inline-block mt-1.5 text-[10px] text-accent hover:underline">Abrir noticia &rarr;</a>` : ''}
@@ -900,7 +901,7 @@ function renderHistorial(scans) {
             </div>
             ${scans.length === 0 ? '<div class="p-8 text-center text-gray-600">Sin escaneos previos</div>' : `
             <div class="overflow-x-auto -mx-px">
-                <table class="w-full text-xs sm:text-sm min-w-[500px]">
+                <table class="w-full text-xs sm:text-sm min-w-[380px] scan-history-table">
                     <thead>
                         <tr class="text-left text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider border-b border-gray-800">
                             <th class="p-2 sm:p-3 w-8">Comp</th>
@@ -1107,7 +1108,7 @@ function renderImageIndex(idx, history) {
         const w = 160, h = 40;
         const points = vals.map((v, i) => `${(i / (vals.length - 1)) * w},${h - ((v - min) / range) * h}`).join(' ');
         sparkHtml = `
-            <div class="flex-shrink-0 ml-4" title="Tendencia del indice">
+            <div class="flex-shrink-0 ml-4 image-index-spark hidden sm:block" title="Tendencia del indice">
                 <svg width="${w}" height="${h + 4}" class="overflow-visible">
                     <polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
                     <circle cx="${w}" cy="${h - ((vals[vals.length-1] - min) / range) * h}" r="3" fill="${color}"/>

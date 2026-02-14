@@ -373,44 +373,60 @@ svg circle {
     /* Hide the desktop tab bar on mobile */
     .desktop-tab-bar { display: none; }
 
+    /* Hide duplicate date range bar on mobile (keep only the top one) */
+    .date-range-secondary { display: none; }
+
     /* Compact summary cards */
     #summary-cards .text-2xl { font-size: 1.25rem; }
 
-    /* Date range buttons */
-    .date-range-btn { padding: 6px 14px; min-height: 36px; }
-    .filter-btn { padding: 6px 14px; min-height: 36px; }
+    /* Touch-friendly buttons: 44px minimum */
+    .date-range-btn { padding: 8px 16px; min-height: 44px; font-size: 13px; }
+    .filter-btn { padding: 8px 16px; min-height: 44px; font-size: 13px; }
+    .platform-filter-btn { min-height: 44px; padding: 8px 12px !important; }
 
     /* Press/social items: tighter padding */
     .item-list .card-hover { padding: 12px !important; }
 
-    /* Charts fill width */
-    canvas { max-height: 180px; }
+    /* Scrollable lists: limit to viewport height */
+    .item-list { max-height: 60vh !important; }
 
-    /* Historial table: smaller text */
+    /* Charts fill width, compact */
+    canvas { max-height: 160px; }
+
+    /* Historial table: reduce min-width for mobile scroll */
+    .scan-history-table { min-width: 400px !important; }
     .scan-history-row td { padding: 8px 4px !important; font-size: 11px; }
     .scan-history-row th { padding: 8px 4px !important; font-size: 10px; }
 
-    /* Image index components: wrap */
+    /* Image index: sparkline below on mobile */
     .image-index-components { grid-template-columns: repeat(3, 1fr) !important; }
+    .image-index-spark { display: none; }
 
     /* Portfolio metrics grid */
     .portfolio-metrics { grid-template-columns: repeat(2, 1fr) !important; }
 
-    /* Alerts filter: wrap */
-    .alerts-filter-bar { flex-wrap: wrap; gap: 4px; }
+    /* Alerts filter: wrap, bigger touch targets */
+    .alerts-filter-bar { flex-wrap: wrap; gap: 6px; }
 
     /* Word cloud smaller on mobile */
-    .word-cloud-item { font-size: 85% !important; }
+    .word-cloud-item { font-size: 80% !important; max-width: 45vw; overflow: hidden; text-overflow: ellipsis; }
 
     /* Executive summary more compact */
     #executive-summary { padding: 12px !important; }
+
+    /* Setup panel: less top margin */
+    #setup-panel { margin-top: 2rem !important; padding: 12px !important; }
 
     /* Modals full-width on mobile */
     #player-modal > div,
     #player-compare-modal > div {
         border-radius: 16px 16px 0 0;
         max-height: 90vh;
+        padding: 16px !important;
     }
+
+    /* Alert source cards: tighter */
+    .alert-source-card { padding: 8px !important; }
 }
 
 /* Desktop: show desktop tab bar, hide bottom nav */
