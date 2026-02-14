@@ -240,6 +240,26 @@ async def init_db():
             );
         """)
 
+        # SofaScore ratings table
+        await conn.executescript("""
+            CREATE TABLE IF NOT EXISTS sofascore_ratings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                player_id INTEGER,
+                match_date TEXT,
+                competition TEXT,
+                opponent TEXT,
+                rating REAL,
+                minutes_played INTEGER DEFAULT 0,
+                goals INTEGER DEFAULT 0,
+                assists INTEGER DEFAULT 0,
+                yellow_cards INTEGER DEFAULT 0,
+                red_cards INTEGER DEFAULT 0,
+                scraped_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY (player_id) REFERENCES players(id),
+                UNIQUE(player_id, match_date, opponent)
+            );
+        """)
+
         # Weekly reports table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS weekly_reports (
@@ -285,6 +305,10 @@ async def init_db():
             "ALTER TABLE social_mentions ADD COLUMN image_url TEXT",
             # D3: Brand collaboration details
             "ALTER TABLE scan_reports ADD COLUMN brand_details_json TEXT",
+            # full_text for press items
+            "ALTER TABLE press_items ADD COLUMN full_text TEXT",
+            # SofaScore URL for players
+            "ALTER TABLE players ADD COLUMN sofascore_url TEXT",
         ]
         for m in migrations:
             try:
@@ -450,8 +474,8 @@ async def insert_press_items(player_id, items):
             try:
                 await conn.execute(
                     """INSERT OR IGNORE INTO press_items
-                    (player_id, source, title, url, summary, sentiment, sentiment_label, published_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (player_id, source, title, url, summary, sentiment, sentiment_label, published_at, full_text)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         player_id,
                         item.get("source"),
@@ -461,6 +485,7 @@ async def insert_press_items(player_id, items):
                         item.get("sentiment"),
                         item.get("sentiment_label"),
                         item.get("published_at"),
+                        item.get("full_text", ""),
                     ),
                 )
                 inserted += 1
@@ -1775,3 +1800,122 @@ async def get_brand_collaborations(player_id):
         # Fallback: convert simple brands list to objects
         brands = json.loads(row["brands_json"] or "{}")
         return [{"brand": b, "type": "mencion", "count": c} for b, c in brands.items()]
+
+
+# ── SofaScore Ratings ──
+
+async def insert_sofascore_ratings(player_id, items):
+    async with aiosqlite.connect(DB_PATH) as conn:
+        inserted = 0
+        for item in items:
+            try:
+                await conn.execute(
+                    """INSERT OR REPLACE INTO sofascore_ratings
+                    (player_id, match_date, competition, opponent, rating,
+                     minutes_played, goals, assists, yellow_cards, red_cards)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        player_id,
+                        item.get("match_date", ""),
+                        item.get("competition", ""),
+                        item.get("opponent", ""),
+                        item.get("rating"),
+                        item.get("minutes_played", 0),
+                        item.get("goals", 0),
+                        item.get("assists", 0),
+                        item.get("yellow_cards", 0),
+                        item.get("red_cards", 0),
+                    ),
+                )
+                inserted += 1
+            except Exception:
+                pass
+        await conn.commit()
+        return inserted
+
+
+async def get_sofascore_ratings(player_id, limit=50):
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        rows = await conn.execute_fetchall(
+            """SELECT * FROM sofascore_ratings
+            WHERE player_id = ? ORDER BY match_date DESC LIMIT ?""",
+            (player_id, limit),
+        )
+        return [dict(r) for r in rows]
+
+
+# ── Monthly Activity & Platform Stats ──
+
+async def get_monthly_activity(player_id, year, month):
+    """Get daily activity counts per platform for a given month."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        rows = await conn.execute_fetchall(
+            """SELECT date(posted_at) as day, platform, COUNT(*) as count
+            FROM player_posts WHERE player_id = ?
+            AND strftime('%Y', posted_at) = ? AND strftime('%m', posted_at) = ?
+            GROUP BY day, platform ORDER BY day""",
+            (player_id, str(year), str(month).zfill(2)),
+        )
+        return [dict(r) for r in rows]
+
+
+async def get_activity_by_platform(player_id):
+    """Get activity stats grouped by platform."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+
+        platforms = {}
+        # Get per-platform stats
+        stats_rows = await conn.execute_fetchall(
+            """SELECT platform,
+                COUNT(*) as total_posts,
+                AVG(engagement_rate) as avg_engagement,
+                AVG(likes) as avg_likes,
+                AVG(comments) as avg_comments,
+                SUM(likes) as total_likes,
+                SUM(views) as total_views,
+                MAX(posted_at) as last_post
+            FROM player_posts WHERE player_id = ?
+            GROUP BY platform""",
+            (player_id,),
+        )
+        for row in stats_rows:
+            r = dict(row)
+            platform = r.pop("platform")
+            platforms[platform] = {"stats": r, "posts": [], "peak_hours": [], "peak_days": []}
+
+        # Get recent posts per platform
+        for platform in platforms:
+            posts = await conn.execute_fetchall(
+                """SELECT * FROM player_posts
+                WHERE player_id = ? AND platform = ?
+                ORDER BY posted_at DESC LIMIT 50""",
+                (player_id, platform),
+            )
+            platforms[platform]["posts"] = [dict(p) for p in posts]
+
+            # Peak hours
+            hours = await conn.execute_fetchall(
+                """SELECT CAST(strftime('%H', posted_at) AS INTEGER) as hour, COUNT(*) as count
+                FROM player_posts WHERE player_id = ? AND platform = ?
+                GROUP BY hour ORDER BY count DESC LIMIT 5""",
+                (player_id, platform),
+            )
+            platforms[platform]["peak_hours"] = [dict(h) for h in hours]
+
+            # Peak days
+            days = await conn.execute_fetchall(
+                """SELECT CASE CAST(strftime('%w', posted_at) AS INTEGER)
+                    WHEN 0 THEN 'Dom' WHEN 1 THEN 'Lun' WHEN 2 THEN 'Mar'
+                    WHEN 3 THEN 'Mie' WHEN 4 THEN 'Jue' WHEN 5 THEN 'Vie'
+                    WHEN 6 THEN 'Sab' END as day_name,
+                    COUNT(*) as count
+                FROM player_posts WHERE player_id = ? AND platform = ?
+                GROUP BY day_name ORDER BY count DESC""",
+                (player_id, platform),
+            )
+            platforms[platform]["peak_days"] = [dict(d) for d in days]
+
+        return platforms

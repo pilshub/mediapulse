@@ -20,7 +20,7 @@ async function launchScan() {
         instagram: document.getElementById('inp-instagram').value.trim() || null,
         club: document.getElementById('inp-club').value.trim() || null,
         transfermarkt_id: document.getElementById('inp-tm').value.trim() || null,
-        tiktok: document.getElementById('inp-tiktok')?.value.trim() || null,
+        sofascore_url: document.getElementById('inp-sofascore')?.value.trim() || null,
     };
 
     document.getElementById('setup-panel').classList.add('hidden');
@@ -103,7 +103,7 @@ async function addAndScanPlayer() {
         instagram: document.getElementById('modal-instagram').value.trim() || null,
         club: document.getElementById('modal-club').value.trim() || null,
         transfermarkt_id: document.getElementById('modal-tm').value.trim() || null,
-        tiktok: document.getElementById('modal-tiktok')?.value.trim() || null,
+        sofascore_url: document.getElementById('modal-sofascore')?.value.trim() || null,
     };
 
     hidePlayerSwitcher();
@@ -229,7 +229,8 @@ async function loadDashboard(playerId) {
     // Load all data in parallel
     const [summary, report, press, social, activity, alerts, stats, scans, imageIndex, weeklyReports,
            sentByPlatform, activityPeaks, topInfluencers, idxHistory, intelligence,
-           activityCalendar, marketValueHistory, collaborations, trendsHistory] = await Promise.all([
+           activityCalendar, marketValueHistory, collaborations, trendsHistory,
+           sofascoreRatings, activityByPlatform] = await Promise.all([
         fetch(`/api/summary?player_id=${playerId}${dp}`).then(r => r.json()),
         fetch(`/api/report?player_id=${playerId}`).then(r => r.json()).catch(() => null),
         fetch(`/api/press?player_id=${playerId}${dp}`).then(r => r.json()),
@@ -249,6 +250,8 @@ async function loadDashboard(playerId) {
         fetch(`/api/player/${playerId}/market-value-history`).then(r => r.json()).catch(() => []),
         fetch(`/api/player/${playerId}/collaborations`).then(r => r.json()).catch(() => []),
         fetch(`/api/player/${playerId}/trends/history`).then(r => r.json()).catch(() => []),
+        fetch(`/api/player/${playerId}/sofascore-ratings`).then(r => r.json()).catch(() => ({ratings: [], stats: null})),
+        fetch(`/api/player/${playerId}/activity-by-platform`).then(r => r.json()).catch(() => ({})),
     ]);
 
     // Store data for search/filter
@@ -293,14 +296,15 @@ async function loadDashboard(playerId) {
     // Render tabs
     renderPress(press, stats);
     renderSocial(social, stats, sentByPlatform, topInfluencers);
-    renderActivity(activity, stats, activityPeaks, activityCalendar);
+    renderActivity(activity, stats, activityPeaks, activityCalendar, activityByPlatform);
     renderAlerts(alerts);
     renderHistorial(scans);
     renderHistorico(stats);
-    renderInteligencia(intelligence, marketValueHistory, collaborations, trendsHistory);
+    renderInteligencia(intelligence, collaborations, trendsHistory);
+    renderRendimiento(intelligence, marketValueHistory, sofascoreRatings);
     renderInforme(weeklyReports, imageIndex);
 
-    switchTab('prensa');
+    switchTab('inteligencia');
 }
 
 // -- Scheduler Status --
@@ -634,133 +638,210 @@ function renderSocial(items, stats, sentByPlatform, topInfluencers) {
     createDoughnutChart('chart-social-sentiment', sentDist);
 }
 
-// -- Activity Tab --
-function renderActivity(items, stats, activityPeaks, activityCalendar) {
+// -- Activity Tab (per-platform + monthly calendar) --
+function renderActivity(items, stats, activityPeaks, activityCalendar, activityByPlatform) {
     const container = document.getElementById('tab-actividad');
-    const topPosts = [...items].sort((a, b) => (b.likes || 0) - (a.likes || 0)).slice(0, 5);
-    activityPeaks = activityPeaks || { hours: [], days: [] };
+    activityByPlatform = activityByPlatform || {};
     activityCalendar = activityCalendar || [];
 
-    container.innerHTML = `
-        ${activityCalendar.length > 0 ? renderActivityCalendar(activityCalendar) : ''}
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 ${activityCalendar.length > 0 ? 'mt-4' : ''}">
-            <div class="lg:col-span-2 order-2 lg:order-1">
-                <div class="bg-dark-700 rounded-xl border border-gray-800">
-                    <div class="p-3 sm:p-4 border-b border-gray-800">
-                        <div class="flex items-center justify-between mb-1">
-                            <h3 class="font-semibold text-white text-sm sm:text-base">Sus Redes (${items.length} posts)</h3>
-                            <button onclick="exportCSV('activity')" class="text-xs text-accent hover:underline touch-target">CSV</button>
-                        </div>
-                        <p class="text-[10px] sm:text-xs text-gray-500 mb-2">Publicaciones propias del jugador en Twitter, Instagram y TikTok</p>
-                        <input type="text" placeholder="Buscar en posts..." class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:border-accent focus:outline-none" oninput="filterList(this.value, 'activity')">
-                    </div>
-                    <div class="item-list max-h-[60vh] sm:max-h-[600px] overflow-y-auto" id="activity-list">
-                        ${items.length === 0 ? '<div class="p-8 text-center"><p class="text-gray-500 text-sm mb-2">Sin datos de actividad del jugador</p><p class="text-gray-600 text-xs">Configura los handles de Twitter, Instagram o TikTok para rastrear sus publicaciones.</p></div>' :
-                        items.map(item => `
-                            <div class="p-3 sm:p-4 card-hover search-item" data-search="${escapeHtml((item.text || '') + ' ' + (item.platform || '') + ' ' + (item.media_type || '')).toLowerCase()}">
-                                <div class="flex items-start gap-2 sm:gap-3">
-                                    <span class="text-base sm:text-lg platform-${item.platform} flex-shrink-0">${platformIcon(item.platform)}</span>
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex items-center gap-1 sm:gap-2 mb-1 flex-wrap">
-                                            <span class="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-dark-500 text-gray-400">${item.media_type || 'text'}</span>
-                                            <span class="text-[10px] sm:text-xs px-2 py-0.5 rounded-full badge-${item.sentiment_label || 'neutro'}">${item.sentiment_label || 'neutro'}</span>
-                                        </div>
-                                        <div class="flex gap-2">
-                                            <p class="text-xs sm:text-sm text-gray-300 line-clamp-3 flex-1">${escapeHtml(item.text || '')}</p>
-                                            ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0" loading="lazy" onerror="this.style.display='none'">` : ''}
-                                        </div>
-                                        <div class="flex items-center gap-2 sm:gap-4 mt-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
-                                            <span>${fmtNum(item.likes)} me gusta</span>
-                                            <span>${fmtNum(item.comments)} comentarios</span>
-                                            <span>${fmtNum(item.shares)} compartidos</span>
-                                            ${item.views ? `<span>${fmtNum(item.views)} vistas</span>` : ''}
-                                            ${item.engagement_rate ? `<span class="text-accent">${(item.engagement_rate * 100).toFixed(2)}% eng</span>` : ''}
-                                            ${item.url ? `<a href="${item.url}" target="_blank" class="text-accent hover:underline">Ver</a>` : ''}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-            <div class="space-y-3 sm:space-y-4 order-1 lg:order-2">
-                ${activityPeaks.hours?.length ? `
-                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
-                    <h4 class="text-sm font-semibold text-white mb-3">Horas de Publicacion</h4>
-                    <canvas id="chart-peak-hours" height="120"></canvas>
-                    ${activityPeaks.peak_hour !== null ? `<p class="text-[10px] text-gray-500 mt-2 text-center">Hora pico: <span class="text-accent font-bold">${activityPeaks.peak_hour}:00</span></p>` : ''}
-                </div>
-                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
-                    <h4 class="text-sm font-semibold text-white mb-3">Dias de Publicacion</h4>
-                    <canvas id="chart-peak-days" height="120"></canvas>
-                    ${activityPeaks.peak_day ? `<p class="text-[10px] text-gray-500 mt-2 text-center">Dia pico: <span class="text-accent font-bold">${activityPeaks.peak_day}</span></p>` : ''}
-                </div>` : ''}
-                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
-                    <h4 class="text-sm font-semibold text-white mb-3">Top Posts</h4>
-                    <div class="space-y-3">
-                        ${topPosts.map((p, i) => `
-                            <div class="flex items-center gap-3">
-                                <span class="text-lg font-bold text-gray-600">${i + 1}</span>
-                                <div class="flex-1 min-w-0">
-                                    <p class="text-xs text-gray-400 truncate">${escapeHtml((p.text || '').slice(0, 80))}</p>
-                                    <span class="text-xs text-accent">${fmtNum(p.likes)} me gusta</span>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
-                    <h4 class="text-sm font-semibold text-white mb-3">Tipo de Contenido</h4>
-                    <canvas id="chart-content-type" height="200"></canvas>
-                </div>
+    // Determine which platforms have data
+    const platforms = Object.keys(activityByPlatform);
+    const hasPlatformData = platforms.length > 0;
+
+    // Calculate global stats for the month
+    const now = new Date();
+    const currentMonth = now.toLocaleString('es-ES', { month: 'long', year: 'numeric', timeZone: 'Europe/Madrid' });
+    const totalPosts = items.length;
+    const mostActivePlatform = platforms.reduce((best, p) => {
+        const count = activityByPlatform[p]?.stats?.total_posts || 0;
+        return count > (best.count || 0) ? { name: p, count } : best;
+    }, { name: '-', count: 0 });
+
+    // Monthly calendar data from items
+    const monthlyData = {};
+    items.forEach(item => {
+        if (!item.posted_at) return;
+        const day = item.posted_at.substring(0, 10);
+        if (!monthlyData[day]) monthlyData[day] = { instagram: 0, twitter: 0, other: 0 };
+        const p = (item.platform || '').toLowerCase();
+        if (p === 'instagram') monthlyData[day].instagram++;
+        else if (p === 'twitter') monthlyData[day].twitter++;
+        else monthlyData[day].other++;
+    });
+
+    // Build monthly calendar
+    const calYear = now.getFullYear();
+    const calMonth = now.getMonth();
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const firstDayOfWeek = (new Date(calYear, calMonth, 1).getDay() + 6) % 7; // Monday = 0
+    const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+    let calendarHTML = `
+    <div class="bg-dark-700 rounded-xl border border-gray-800 p-4 mb-4">
+        <div class="flex items-center justify-between mb-3">
+            <h4 class="text-sm font-semibold text-white">${currentMonth.charAt(0).toUpperCase() + currentMonth.slice(1)}</h4>
+            <div class="flex items-center gap-3 text-xs">
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-pink-500"></span> Instagram</span>
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-400"></span> X/Twitter</span>
             </div>
         </div>
+        <div class="grid grid-cols-7 gap-1 text-center">
+            ${dayNames.map(d => `<div class="text-[10px] text-gray-600 font-medium py-1">${d}</div>`).join('')}
+            ${'<div></div>'.repeat(firstDayOfWeek)}`;
+
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const dayData = monthlyData[dateStr];
+        const isToday = d === now.getDate();
+        const hasPosts = dayData && (dayData.instagram + dayData.twitter + dayData.other) > 0;
+
+        let dots = '';
+        if (dayData) {
+            if (dayData.instagram > 0) dots += `<span class="w-1.5 h-1.5 rounded-full bg-pink-500 inline-block"></span>`;
+            if (dayData.twitter > 0) dots += `<span class="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block"></span>`;
+            if (dayData.other > 0) dots += `<span class="w-1.5 h-1.5 rounded-full bg-gray-500 inline-block"></span>`;
+        }
+
+        calendarHTML += `
+        <div class="relative p-1 rounded ${isToday ? 'ring-1 ring-accent' : ''} ${hasPosts ? 'bg-dark-600' : ''}"
+             title="${dateStr}: ${dayData ? dayData.instagram + dayData.twitter + dayData.other : 0} posts">
+            <div class="text-xs ${isToday ? 'text-accent font-bold' : hasPosts ? 'text-white' : 'text-gray-600'}">${d}</div>
+            <div class="flex gap-0.5 justify-center mt-0.5 min-h-[6px]">${dots}</div>
+        </div>`;
+    }
+    calendarHTML += '</div></div>';
+
+    // Global metrics row
+    const metricsHTML = `
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 text-center">
+            <div class="text-xl font-bold text-white">${totalPosts}</div>
+            <div class="text-[10px] text-gray-500 uppercase">Posts totales</div>
+        </div>
+        <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 text-center">
+            <div class="text-xl font-bold text-white">${platforms.length}</div>
+            <div class="text-[10px] text-gray-500 uppercase">Plataformas</div>
+        </div>
+        <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 text-center">
+            <div class="text-xl font-bold text-white capitalize">${mostActivePlatform.name}</div>
+            <div class="text-[10px] text-gray-500 uppercase">Mas activo</div>
+        </div>
+        <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 text-center">
+            <div class="text-xl font-bold text-white">${items.length > 0 ? (items.reduce((s, i) => s + (i.engagement_rate || 0), 0) / items.length * 100).toFixed(2) + '%' : '-'}</div>
+            <div class="text-[10px] text-gray-500 uppercase">Engagement medio</div>
+        </div>
+    </div>`;
+
+    // Platform sections
+    let platformSectionsHTML = '';
+    const platformConfig = {
+        instagram: { icon: '📸', color: 'pink-500', label: 'Instagram' },
+        twitter: { icon: '𝕏', color: 'blue-400', label: 'X / Twitter' },
+    };
+
+    for (const [platform, config] of Object.entries(platformConfig)) {
+        const pData = activityByPlatform[platform];
+        if (!pData) continue;
+
+        const pStats = pData.stats || {};
+        const pPosts = pData.posts || [];
+        const peakHours = pData.peak_hours || [];
+        const peakDays = pData.peak_days || [];
+        const bestHour = peakHours.length > 0 ? `${peakHours[0].hour}:00` : '-';
+        const bestDay = peakDays.length > 0 ? peakDays[0].day_name : '-';
+
+        platformSectionsHTML += `
+        <div class="bg-dark-700 rounded-xl border border-gray-800 p-4 mb-4">
+            <div class="flex items-center gap-2 mb-3">
+                <span class="text-xl">${config.icon}</span>
+                <h4 class="text-sm font-semibold text-white">${config.label}</h4>
+                <span class="text-xs text-gray-500 ml-auto">${pStats.total_posts || 0} posts</span>
+            </div>
+
+            <!-- Stats grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+                <div class="bg-dark-900 rounded-lg p-2 text-center">
+                    <div class="text-sm font-bold text-white">${pStats.total_posts || 0}</div>
+                    <div class="text-[9px] text-gray-500">Posts</div>
+                </div>
+                <div class="bg-dark-900 rounded-lg p-2 text-center">
+                    <div class="text-sm font-bold text-white">${pStats.avg_engagement ? (pStats.avg_engagement * 100).toFixed(2) + '%' : '-'}</div>
+                    <div class="text-[9px] text-gray-500">Engagement</div>
+                </div>
+                <div class="bg-dark-900 rounded-lg p-2 text-center">
+                    <div class="text-sm font-bold text-white">${Math.round(pStats.avg_likes || 0)}</div>
+                    <div class="text-[9px] text-gray-500">Likes/post</div>
+                </div>
+                <div class="bg-dark-900 rounded-lg p-2 text-center">
+                    <div class="text-sm font-bold text-white">${bestHour}</div>
+                    <div class="text-[9px] text-gray-500">Mejor hora</div>
+                </div>
+                <div class="bg-dark-900 rounded-lg p-2 text-center">
+                    <div class="text-sm font-bold text-white">${bestDay}</div>
+                    <div class="text-[9px] text-gray-500">Mejor dia</div>
+                </div>
+            </div>
+
+            <!-- Posts list -->
+            <div class="item-list max-h-[400px] overflow-y-auto space-y-1">
+                ${pPosts.slice(0, 20).map(post => `
+                <div class="flex gap-3 p-2 rounded-lg hover:bg-dark-600 transition">
+                    ${post.image_url ? `<img src="${escapeHtml(post.image_url)}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0" loading="lazy" onerror="this.style.display='none'">` : ''}
+                    <div class="flex-1 min-w-0">
+                        <div class="text-xs text-gray-300 line-clamp-2">${escapeHtml((post.text || '').substring(0, 150))}</div>
+                        <div class="flex items-center gap-3 mt-1 text-[10px] text-gray-500">
+                            <span>${post.likes || 0} likes</span>
+                            <span>${post.comments || 0} comments</span>
+                            ${post.views ? `<span>${formatNumber(post.views)} views</span>` : ''}
+                            <span>${post.posted_at ? formatDate(post.posted_at) : ''}</span>
+                            ${post.sentiment_label ? `<span class="badge-${post.sentiment_label} px-1 rounded text-[9px]">${post.sentiment_label}</span>` : ''}
+                        </div>
+                    </div>
+                    ${post.url ? `<a href="${escapeHtml(post.url)}" target="_blank" class="text-accent text-xs flex-shrink-0 hover:underline">Ver</a>` : ''}
+                </div>`).join('')}
+                ${pPosts.length === 0 ? '<div class="text-center text-gray-600 text-sm py-4">Sin posts en este periodo</div>' : ''}
+            </div>
+        </div>`;
+    }
+
+    // Annual heatmap (collapsible)
+    let annualHeatmapHTML = '';
+    if (activityCalendar.length > 0) {
+        annualHeatmapHTML = `
+        <details class="bg-dark-700 rounded-xl border border-gray-800 mt-4">
+            <summary class="p-3 cursor-pointer text-xs text-gray-400 hover:text-white">Vista anual (heatmap)</summary>
+            <div class="p-3 pt-0">${renderActivityCalendar(activityCalendar)}</div>
+        </details>`;
+    }
+
+    // Fallback if no platform data
+    if (!hasPlatformData && items.length > 0) {
+        platformSectionsHTML = `
+        <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+            <div class="item-list max-h-[600px] overflow-y-auto space-y-2">
+                ${items.slice(0, 50).map(item => `
+                <div class="flex gap-3 p-2 rounded-lg hover:bg-dark-600 transition">
+                    ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0" loading="lazy" onerror="this.style.display='none'">` : ''}
+                    <div class="flex-1 min-w-0">
+                        <span class="platform-${item.platform} text-xs font-medium">${item.platform}</span>
+                        <div class="text-xs text-gray-300 mt-1">${escapeHtml((item.text || '').substring(0, 200))}</div>
+                        <div class="flex items-center gap-3 mt-1 text-[10px] text-gray-500">
+                            <span>${item.likes || 0} likes</span>
+                            <span>${formatDate(item.posted_at)}</span>
+                            ${item.sentiment_label ? `<span class="badge-${item.sentiment_label} px-1 rounded text-[9px]">${item.sentiment_label}</span>` : ''}
+                        </div>
+                    </div>
+                </div>`).join('')}
+            </div>
+        </div>`;
+    }
+
+    container.innerHTML = `
+        ${metricsHTML}
+        ${calendarHTML}
+        ${platformSectionsHTML}
+        ${annualHeatmapHTML}
     `;
-
-    // Peak hours chart
-    if (activityPeaks.hours?.length) {
-        const hourLabels = activityPeaks.hours.map(h => h.hour + 'h');
-        const hourValues = activityPeaks.hours.map(h => h.count);
-        const maxHour = Math.max(...hourValues);
-        const hourColors = hourValues.map(v => v === maxHour && v > 0 ? '#1d9bf0' : '#1d9bf040');
-        const hCtx = document.getElementById('chart-peak-hours');
-        if (hCtx) {
-            if (charts['chart-peak-hours']) charts['chart-peak-hours'].destroy();
-            charts['chart-peak-hours'] = new Chart(hCtx, {
-                type: 'bar',
-                data: { labels: hourLabels, datasets: [{ data: hourValues, backgroundColor: hourColors, borderRadius: 2 }] },
-                options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#71767b', font: { size: 8 } }, grid: { display: false } }, y: { ticks: { color: '#71767b', font: { size: 9 } }, grid: { color: '#1a1a1a' } } } }
-            });
-        }
-    }
-
-    // Peak days chart
-    if (activityPeaks.days?.length) {
-        const dayLabels = activityPeaks.days.map(d => d.day);
-        const dayValues = activityPeaks.days.map(d => d.count);
-        const maxDay = Math.max(...dayValues);
-        const dayColors = dayValues.map(v => v === maxDay && v > 0 ? '#00ba7c' : '#00ba7c40');
-        const dCtx = document.getElementById('chart-peak-days');
-        if (dCtx) {
-            if (charts['chart-peak-days']) charts['chart-peak-days'].destroy();
-            charts['chart-peak-days'] = new Chart(dCtx, {
-                type: 'bar',
-                data: { labels: dayLabels, datasets: [{ data: dayValues, backgroundColor: dayColors, borderRadius: 4 }] },
-                options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#71767b', font: { size: 10 } }, grid: { display: false } }, y: { ticks: { color: '#71767b' }, grid: { color: '#1a1a1a' } } } }
-            });
-        }
-    }
-
-    const typeCounts = {};
-    items.forEach(i => { typeCounts[i.media_type || 'text'] = (typeCounts[i.media_type || 'text'] || 0) + 1; });
-    if (Object.keys(typeCounts).length) {
-        createDoughnutChart('chart-content-type', {
-            labels: Object.keys(typeCounts),
-            values: Object.values(typeCounts),
-            colors: ['#1d9bf0', '#e1306c', '#ffd166', '#00ba7c', '#a855f7', '#00f2ea'],
-        });
-    }
 }
 
 // -- Activity Calendar (GitHub-style heatmap) --
@@ -1047,18 +1128,22 @@ function renderHistorico(stats) {
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
             <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
                 <h4 class="text-xs sm:text-sm font-semibold text-white mb-3">Volumen Prensa</h4>
+                <p class="text-[10px] text-gray-600 mb-2 leading-relaxed">Numero de noticias por dia. Picos pueden indicar eventos importantes (fichajes, partidos, polemicas). Un volumen sostenido alto sugiere tendencia mediatica.</p>
                 <canvas id="chart-hist-press" height="180"></canvas>
             </div>
             <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
                 <h4 class="text-xs sm:text-sm font-semibold text-white mb-3">Volumen Menciones</h4>
+                <p class="text-[10px] text-gray-600 mb-2 leading-relaxed">Menciones en redes sociales por dia. Correlacionar con eventos reales. Picos sin evento claro pueden ser campanas virales.</p>
                 <canvas id="chart-hist-mentions" height="180"></canvas>
             </div>
             <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
                 <h4 class="text-xs sm:text-sm font-semibold text-white mb-3">Sent. Prensa</h4>
+                <p class="text-[10px] text-gray-600 mb-2 leading-relaxed">Sentimiento medio de la prensa por dia (-1 negativo, +1 positivo). Caidas bruscas senalan cobertura negativa.</p>
                 <canvas id="chart-hist-press-sent" height="180"></canvas>
             </div>
             <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4">
                 <h4 class="text-xs sm:text-sm font-semibold text-white mb-3">Sent. Redes</h4>
+                <p class="text-[10px] text-gray-600 mb-2 leading-relaxed">Sentimiento de redes sociales por dia. Mas volatil que prensa. Divergencia prensa/redes puede indicar descontento de la aficion.</p>
                 <canvas id="chart-hist-social-sent" height="180"></canvas>
             </div>
         </div>
@@ -1251,8 +1336,209 @@ function renderImageIndex(idx, history) {
     `;
 }
 
+// -- Rendimiento (Sports Performance) Tab --
+function renderRendimiento(intelligence, marketValueHistory, sofascoreRatings) {
+    const container = document.getElementById('tab-rendimiento');
+    if (!container) return;
+
+    const stats = intelligence?.stats || null;
+    const sofaStats = sofascoreRatings?.stats || null;
+    const ratings = sofascoreRatings?.ratings || [];
+    marketValueHistory = marketValueHistory || [];
+
+    let html = '';
+
+    // -- Market Value History Chart --
+    if (marketValueHistory.length > 0) {
+        const current = marketValueHistory[0];
+        const previous = marketValueHistory.length > 1 ? marketValueHistory[1] : null;
+        let deltaHTML = '';
+        if (previous && current.market_value_numeric && previous.market_value_numeric) {
+            const pct = ((current.market_value_numeric - previous.market_value_numeric) / previous.market_value_numeric * 100).toFixed(1);
+            const color = pct > 0 ? 'text-green-400' : pct < 0 ? 'text-red-400' : 'text-gray-400';
+            const arrow = pct > 0 ? '↑' : pct < 0 ? '↓' : '→';
+            deltaHTML = `<span class="${color} text-sm ml-2">${arrow} ${pct}%</span>`;
+        }
+        html += `
+        <div class="bg-dark-700 rounded-xl border border-gray-800 p-4 mb-4">
+            <div class="flex items-center justify-between mb-3">
+                <h4 class="text-sm font-semibold text-white">Valor de Mercado</h4>
+                <div class="text-lg font-bold text-green-400">${escapeHtml(current.market_value || '')}${deltaHTML}</div>
+            </div>
+            <canvas id="chart-market-value-perf" height="120"></canvas>
+        </div>`;
+    }
+
+    // -- SofaScore Ratings --
+    if (sofaStats) {
+        const trendIcon = sofaStats.trend === 'mejorando' ? '↑' : sofaStats.trend === 'empeorando' ? '↓' : '→';
+        const trendColor = sofaStats.trend === 'mejorando' ? 'text-green-400' : sofaStats.trend === 'empeorando' ? 'text-red-400' : 'text-yellow-400';
+        const avgColor = sofaStats.avg_rating >= 7.5 ? '#00ba7c' : sofaStats.avg_rating >= 6.5 ? '#ffd166' : '#f4212e';
+
+        html += `
+        <div class="bg-dark-700 rounded-xl border border-gray-800 p-4 mb-4">
+            <h4 class="text-sm font-semibold text-white mb-3">Ratings SofaScore</h4>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                <div class="text-center">
+                    <div class="text-3xl font-bold" style="color: ${avgColor}">${sofaStats.avg_rating}</div>
+                    <div class="text-[10px] text-gray-500 uppercase">Rating medio</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-xl font-bold text-white">${sofaStats.matches}</div>
+                    <div class="text-[10px] text-gray-500 uppercase">Partidos</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-xl font-bold ${trendColor}">${trendIcon} ${sofaStats.trend}</div>
+                    <div class="text-[10px] text-gray-500 uppercase">Tendencia</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-xl font-bold text-green-400">${sofaStats.best ? sofaStats.best.rating : '-'}</div>
+                    <div class="text-[10px] text-gray-500 uppercase">Mejor rating</div>
+                </div>
+            </div>
+            ${ratings.length > 0 ? '<canvas id="chart-sofascore-ratings" height="160"></canvas>' : ''}
+            ${ratings.length >= 5 ? `
+            <div class="mt-4">
+                <h5 class="text-xs text-gray-500 uppercase mb-2">Ultimos 5 partidos</h5>
+                <div class="grid grid-cols-5 gap-2">
+                    ${ratings.slice(0, 5).map(r => {
+                        const rc = r.rating >= 7.5 ? '#00ba7c' : r.rating >= 6.5 ? '#ffd166' : '#f4212e';
+                        return `<div class="bg-dark-900 rounded-lg p-2 text-center">
+                            <div class="text-lg font-bold" style="color: ${rc}">${r.rating}</div>
+                            <div class="text-[9px] text-gray-500 truncate">${escapeHtml(r.opponent || '?')}</div>
+                            <div class="text-[9px] text-gray-600">${r.match_date ? r.match_date.substring(5) : ''}</div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>` : ''}
+        </div>`;
+    } else {
+        html += `
+        <div class="bg-dark-700 rounded-xl border border-gray-800 p-4 mb-4">
+            <h4 class="text-sm font-semibold text-white mb-2">Ratings SofaScore</h4>
+            <p class="text-xs text-gray-500">Sin datos de SofaScore. Anade la URL del jugador en SofaScore para obtener ratings por partido.</p>
+        </div>`;
+    }
+
+    // -- Transfermarkt Stats --
+    if (stats) {
+        const currentSeason = stats.current_season || {};
+        const career = stats.career || {};
+        const competitions = stats.competitions || [];
+
+        html += `
+        <div class="bg-dark-700 rounded-xl border border-gray-800 p-4 mb-4">
+            <h4 class="text-sm font-semibold text-white mb-3">Estadisticas Deportivas (Transfermarkt)</h4>
+
+            <!-- Career stats with progress bars -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                ${[
+                    { label: 'Apariciones', value: career.appearances || currentSeason.appearances || 0, max: 500, icon: '⚽' },
+                    { label: 'Goles', value: career.goals || currentSeason.goals || 0, max: 200, icon: '🥅' },
+                    { label: 'Asistencias', value: career.assists || currentSeason.assists || 0, max: 150, icon: '🎯' },
+                    { label: 'Minutos', value: career.minutes_played || 0, max: 45000, icon: '⏱️' },
+                    { label: 'Amarillas', value: career.yellow_cards || 0, max: 100, icon: '🟨' },
+                    { label: 'Rojas', value: career.red_cards || 0, max: 10, icon: '🟥' },
+                ].map(s => `
+                <div class="bg-dark-900 rounded-lg p-3">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[10px] text-gray-500">${s.icon} ${s.label}</span>
+                        <span class="text-sm font-bold text-white">${typeof s.value === 'number' ? s.value.toLocaleString() : s.value}</span>
+                    </div>
+                    <div class="w-full bg-dark-700 rounded-full h-1">
+                        <div class="stat-progress bg-accent rounded-full h-1" style="width: ${Math.min(100, (s.value / s.max) * 100)}%"></div>
+                    </div>
+                </div>`).join('')}
+            </div>
+
+            <!-- Competitions table -->
+            ${competitions.length > 0 ? `
+            <h5 class="text-xs text-gray-500 uppercase mb-2">Competiciones</h5>
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs">
+                    <thead>
+                        <tr class="text-gray-500 border-b border-gray-800">
+                            <th class="text-left py-2 px-1">Competicion</th>
+                            <th class="text-center py-2 px-1">PJ</th>
+                            <th class="text-center py-2 px-1">Goles</th>
+                            <th class="text-center py-2 px-1">Asist.</th>
+                            <th class="text-center py-2 px-1">Min</th>
+                            <th class="text-center py-2 px-1">🟨</th>
+                            <th class="text-center py-2 px-1">🟥</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${competitions.slice(0, 10).map(c => `
+                        <tr class="border-b border-gray-800/50 hover:bg-dark-600">
+                            <td class="py-2 px-1 text-white">${escapeHtml(c.competition || c.name || '')}</td>
+                            <td class="text-center py-2 px-1">${c.appearances || c.matches || 0}</td>
+                            <td class="text-center py-2 px-1 text-green-400">${c.goals || 0}</td>
+                            <td class="text-center py-2 px-1 text-blue-400">${c.assists || 0}</td>
+                            <td class="text-center py-2 px-1">${c.minutes_played || c.minutes || '-'}</td>
+                            <td class="text-center py-2 px-1">${c.yellow_cards || 0}</td>
+                            <td class="text-center py-2 px-1">${c.red_cards || 0}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>` : ''}
+        </div>`;
+    } else {
+        html += `
+        <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+            <h4 class="text-sm font-semibold text-white mb-2">Estadisticas Deportivas</h4>
+            <p class="text-xs text-gray-500">Sin datos de Transfermarkt. Anade el Transfermarkt ID del jugador para obtener estadisticas deportivas.</p>
+        </div>`;
+    }
+
+    container.innerHTML = html;
+
+    // Render charts after DOM update
+    setTimeout(() => {
+        // Market value chart
+        if (marketValueHistory.length > 1) {
+            const mvLabels = marketValueHistory.map(m => m.recorded_at ? formatDate(m.recorded_at) : '').reverse();
+            const mvValues = marketValueHistory.map(m => m.market_value_numeric || 0).reverse();
+            createLineChart('chart-market-value-perf', mvLabels, mvValues, '#00ba7c', 'Valor de mercado');
+        }
+
+        // SofaScore ratings chart
+        if (ratings.length > 1) {
+            const rLabels = ratings.map(r => r.match_date ? r.match_date.substring(5) : '').reverse();
+            const rValues = ratings.map(r => r.rating || 0).reverse();
+            const canvas = document.getElementById('chart-sofascore-ratings');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                if (charts['sofascore-ratings']) charts['sofascore-ratings'].destroy();
+                charts['sofascore-ratings'] = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: rLabels,
+                        datasets: [{
+                            data: rValues,
+                            borderColor: '#1d9bf0',
+                            backgroundColor: 'rgba(29,155,240,0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 3,
+                            pointBackgroundColor: rValues.map(v => v >= 7.5 ? '#00ba7c' : v >= 6.5 ? '#ffd166' : '#f4212e'),
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `Rating: ${ctx.parsed.y}` } } },
+                        scales: {
+                            y: { min: 4, max: 10, grid: { color: '#222' }, ticks: { color: '#666' } },
+                            x: { grid: { display: false }, ticks: { color: '#666', maxTicksLimit: 10 } },
+                        },
+                    },
+                });
+            }
+        }
+    }, 100);
+}
+
 // -- Informe Tab (Weekly Reports) --
-function renderInteligencia(intel, marketValueHistory, collaborations, trendsHistory) {
+function renderInteligencia(intel, collaborations, trendsHistory) {
     const container = document.getElementById('tab-inteligencia');
     if (!intel || !intel.narrativas) {
         container.innerHTML = `
@@ -1342,82 +1628,9 @@ function renderInteligencia(intel, marketValueHistory, collaborations, trendsHis
                 </div>
             </div>
 
-            <!-- Stats, Trends, Market Value, Collaborations -->
-            ${intel.stats || intel.trends || (marketValueHistory && marketValueHistory.length > 0) || (collaborations && collaborations.length > 0) ? `
+            <!-- Trends, Collaborations -->
+            ${intel.trends || (collaborations && collaborations.length > 0) ? `
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                ${intel.stats ? (() => {
-                    const cs = intel.stats.current_season || {};
-                    const hasCurrent = (cs.appearances || 0) > 0;
-                    const maxApps = Math.max(intel.stats.appearances || 1, 1);
-                    return `
-                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
-                    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Rendimiento Deportivo</h3>
-                    ${hasCurrent ? `
-                    <div class="text-[10px] text-accent uppercase tracking-wider mb-2 font-semibold">Temporada ${intel.stats.season || 'actual'}</div>
-                    <div class="grid grid-cols-2 gap-3 mb-3">
-                        <div class="bg-dark-900 rounded-lg p-2.5 text-center">
-                            <div class="text-lg font-bold text-white">${cs.appearances || 0}</div>
-                            <div class="text-[10px] text-gray-500">Partidos</div>
-                        </div>
-                        <div class="bg-dark-900 rounded-lg p-2.5 text-center">
-                            <div class="text-lg font-bold text-green-400">${cs.goals || 0}</div>
-                            <div class="text-[10px] text-gray-500">Goles</div>
-                        </div>
-                    </div>
-                    <div class="text-[10px] text-gray-600 uppercase tracking-wider mb-2 pt-2 border-t border-gray-800">Carrera</div>` : ''}
-                    <div class="space-y-2">
-                        ${[
-                            { label: 'Partidos', value: intel.stats.appearances || 0, color: '#e7e9ea', max: maxApps },
-                            { label: 'Goles', value: intel.stats.goals || 0, color: '#00ba7c', max: maxApps },
-                            { label: 'Asistencias', value: intel.stats.assists || 0, color: '#1d9bf0', max: maxApps },
-                            { label: 'Minutos', value: intel.stats.minutes || 0, color: '#a78bfa', max: (intel.stats.appearances || 1) * 90, fmt: true },
-                        ].map(s => `
-                            <div>
-                                <div class="flex justify-between text-xs mb-1">
-                                    <span class="text-gray-400">${s.label}</span>
-                                    <span class="font-semibold" style="color:${s.color}">${s.fmt ? s.value.toLocaleString() + "'" : s.value}</span>
-                                </div>
-                                <div class="w-full h-1 bg-dark-900 rounded-full overflow-hidden">
-                                    <div class="h-full rounded-full stat-progress" style="width:${Math.min(100, (s.value / s.max) * 100)}%;background:${s.color}"></div>
-                                </div>
-                            </div>
-                        `).join('')}
-                        <div class="flex gap-3 pt-1">
-                            <div class="flex items-center gap-1.5">
-                                <span class="w-3 h-3 rounded bg-yellow-500/20 flex items-center justify-center text-[8px] text-yellow-400 font-bold">${intel.stats.yellows || 0}</span>
-                                <span class="text-[10px] text-gray-500">Amarillas</span>
-                            </div>
-                            <div class="flex items-center gap-1.5">
-                                <span class="w-3 h-3 rounded bg-red-500/20 flex items-center justify-center text-[8px] text-red-400 font-bold">${intel.stats.reds || 0}</span>
-                                <span class="text-[10px] text-gray-500">Rojas</span>
-                            </div>
-                        </div>
-                    </div>
-                    ${intel.stats.competitions && intel.stats.competitions.length > 0 ? `
-                    <div class="mt-3 pt-3 border-t border-gray-800">
-                        <table class="w-full text-xs">
-                            <thead>
-                                <tr class="text-gray-600 text-[10px] uppercase">
-                                    <th class="text-left pb-1.5">Competicion</th>
-                                    <th class="text-center pb-1.5">PJ</th>
-                                    <th class="text-center pb-1.5">G</th>
-                                    <th class="text-center pb-1.5">A</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${intel.stats.competitions.slice(0, 8).map(c => `
-                                <tr class="border-t border-gray-800/50">
-                                    <td class="py-1 text-gray-400 truncate max-w-[120px]">${escapeHtml(c.name)}</td>
-                                    <td class="py-1 text-center text-white font-medium">${c.appearances || 0}</td>
-                                    <td class="py-1 text-center text-green-400">${c.goals || 0}</td>
-                                    <td class="py-1 text-center text-blue-400">${c.assists || 0}</td>
-                                </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>` : ''}
-                </div>`;
-                })() : ''}
                 ${intel.trends ? `
                 <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
                     <div class="flex items-center justify-between mb-3">
@@ -1454,22 +1667,6 @@ function renderInteligencia(intel, marketValueHistory, collaborations, trendsHis
                     <div id="trends-hist" class="hidden mt-3 pt-3 border-t border-gray-800">
                         <canvas id="chart-trends-history" height="120"></canvas>
                     </div>` : ''}
-                </div>` : ''}
-                ${marketValueHistory && marketValueHistory.length > 0 ? `
-                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
-                    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Historial Valor de Mercado</h3>
-                    ${(() => {
-                        const last = marketValueHistory[marketValueHistory.length - 1];
-                        const prev = marketValueHistory.length > 1 ? marketValueHistory[marketValueHistory.length - 2] : null;
-                        const delta = prev && prev.market_value_numeric > 0 ? ((last.market_value_numeric - prev.market_value_numeric) / prev.market_value_numeric * 100) : null;
-                        return `
-                        <div class="flex items-baseline gap-2 mb-3">
-                            <span class="text-xl font-bold text-white">${escapeHtml(last.market_value || '')}</span>
-                            ${delta !== null ? `<span class="text-sm font-semibold ${delta >= 0 ? 'text-green-400' : 'text-red-400'}">${delta >= 0 ? '&#9650;' : '&#9660;'} ${Math.abs(delta).toFixed(1)}%</span>` : ''}
-                        </div>`;
-                    })()}
-                    <canvas id="chart-market-value" height="100"></canvas>
-                    <div class="text-[10px] text-gray-600 text-center mt-1">${marketValueHistory.length} registros</div>
                 </div>` : ''}
                 ${collaborations && collaborations.length > 0 ? `
                 <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
@@ -1586,47 +1783,6 @@ function renderInteligencia(intel, marketValueHistory, collaborations, trendsHis
             </div>` : ''}
         </div>
     `;
-
-    // Market Value History chart
-    if (marketValueHistory && marketValueHistory.length > 1) {
-        const mvCtx = document.getElementById('chart-market-value');
-        if (mvCtx) {
-            if (charts['chart-market-value']) charts['chart-market-value'].destroy();
-            charts['chart-market-value'] = new Chart(mvCtx, {
-                type: 'line',
-                data: {
-                    labels: marketValueHistory.map(h => formatDate(h.recorded_at)),
-                    datasets: [{
-                        data: marketValueHistory.map(h => h.market_value_numeric || 0),
-                        borderColor: '#1d9bf0',
-                        backgroundColor: 'rgba(29, 155, 240, 0.1)',
-                        fill: true,
-                        tension: 0.3,
-                        pointRadius: 3,
-                        pointBackgroundColor: '#1d9bf0',
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: (ctx) => {
-                                    const mv = marketValueHistory[ctx.dataIndex];
-                                    return mv ? mv.market_value : '';
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: { ticks: { color: '#71767b', font: { size: 9 }, maxTicksLimit: 6 }, grid: { display: false } },
-                        y: { ticks: { color: '#71767b', font: { size: 9 }, callback: v => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v }, grid: { color: '#1a1a1a' } }
-                    }
-                }
-            });
-        }
-    }
 
     // Trends History overlay chart
     if (trendsHistory && trendsHistory.length > 1) {

@@ -22,6 +22,65 @@ def _normalize(text):
     return ''.join(c for c in text if unicodedata.category(c) != 'Mn')
 
 
+# Common words that are NOT personal names (for false positive prevention)
+_NOT_NAMES = {
+    "el", "la", "los", "las", "un", "una", "de", "del", "al", "en", "por",
+    "con", "para", "y", "o", "que", "se", "su", "como", "mas", "pero",
+    "jugador", "futbolista", "delantero", "portero", "defensa", "mediocampista",
+    "centrocampista", "mediapunta", "extremo", "lateral", "central", "guardameta",
+    "entrenador", "capitan", "canterano", "fichaje", "lesionado", "titular", "suplente",
+    "goleador", "atacante", "volante", "arquero", "tecnico", "refuerzo",
+    "player", "forward", "striker", "midfielder", "defender", "goalkeeper", "coach",
+    "the", "and", "a", "an", "of", "for", "with", "from", "about", "by", "on", "in",
+    "giocatore", "joueur", "spieler", "attaccante", "difensore",
+}
+
+
+def _name_matches(text, player_name):
+    """Check if player_name appears in text as a contiguous substring,
+    and verify it's not part of a different person's compound name.
+
+    Example: searching for 'Antonio Casas':
+    - 'antonio casas marca gol' -> True
+    - 'juan antonio casas ficha' -> False (preceded by 'juan')
+    - 'el jugador antonio casas' -> True ('jugador' is in _NOT_NAMES)
+    """
+    norm_name = _normalize(player_name)
+    norm_text = _normalize(text)
+
+    if norm_name not in norm_text:
+        return False
+
+    start = 0
+    has_standalone = False
+    while True:
+        idx = norm_text.find(norm_name, start)
+        if idx == -1:
+            break
+
+        before = norm_text[:idx].rstrip()
+        if not before:
+            has_standalone = True
+            break
+
+        words_before = before.split()
+        if not words_before:
+            has_standalone = True
+            break
+
+        preceding_word = words_before[-1]
+
+        if (len(preceding_word) <= 2 or
+            preceding_word in _NOT_NAMES or
+            not preceding_word.isalpha()):
+            has_standalone = True
+            break
+
+        start = idx + 1
+
+    return has_standalone
+
+
 async def _fetch_google_rss(session, query, source_label, limit=MAX_RSS_ITEMS):
     """Fetch a Google News RSS query and return parsed items."""
     url = GOOGLE_NEWS_RSS.format(query=query.replace(" ", "+"))
@@ -141,7 +200,7 @@ async def scrape_spanish_press(player_name, session):
                     feed = feedparser.parse(text)
                     for entry in feed.entries[:100]:
                         content = _normalize(entry.get("title", "") + " " + entry.get("summary", ""))
-                        if name_norm in content or all(part in content for part in name_parts):
+                        if _name_matches(content, player_name):
                             feed_items.append({
                                 "source": source,
                                 "title": entry.get("title", ""),
@@ -260,18 +319,15 @@ async def scrape_all_press(player_name, club=None, limit_multiplier=1):
             seen.add(item["url"])
             unique.append(item)
 
-    # Relevance filter: require BOTH first name AND last name to avoid false positives
-    # e.g. "Joaquín Sánchez" must NOT match when searching "Rodri Sánchez"
-    name_parts = player_name.strip().split() if player_name else []
-    last_name = _normalize(name_parts[-1]) if name_parts else ""
-    first_name = _normalize(name_parts[0]) if len(name_parts) > 1 else ""
-    if last_name and len(last_name) > 2:
+    # Relevance filter: contiguous name matching to avoid false positives
+    # e.g. "Juan Antonio Casas" must NOT match when searching "Antonio Casas"
+    if player_name and len(player_name.strip().split()) >= 2:
         filtered = []
         for item in unique:
-            text = _normalize(item.get("title", "") + " " + item.get("summary", ""))
-            if last_name in text and (first_name in text or len(name_parts) == 1):
+            text = item.get("title", "") + " " + item.get("summary", "")
+            if _name_matches(text, player_name):
                 filtered.append(item)
-        log.info(f"[press] Relevance filter: {len(unique)} -> {len(filtered)} (name='{first_name} {last_name}')")
+        log.info(f"[press] Relevance filter: {len(unique)} -> {len(filtered)} (name='{player_name}')")
         unique = filtered
 
     log.info(f"[press] Total: {len(unique)} noticias (Google={len(google)}, SiteSearch={len(site_search)}, RSS={len(rss_feeds)})")

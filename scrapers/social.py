@@ -8,9 +8,9 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from db import normalize_date
 from config import (
-    APIFY_TOKEN, APIFY_BASE, TWITTER_ACTOR, TIKTOK_ACTOR,
+    APIFY_TOKEN, APIFY_BASE, TWITTER_ACTOR,
     INSTAGRAM_HASHTAG_ACTOR, MAX_INSTAGRAM_MENTIONS,
-    REDDIT_SUBREDDITS, MAX_TWEETS_MENTIONS, MAX_REDDIT_POSTS, MAX_TIKTOK_POSTS,
+    REDDIT_SUBREDDITS, MAX_TWEETS_MENTIONS, MAX_REDDIT_POSTS,
     TELEGRAM_CHANNELS, GOOGLE_NEWS_RSS, FORUM_SITES,
 )
 from scrapers.youtube import scrape_youtube
@@ -27,11 +27,74 @@ def _normalize(text):
     return ''.join(c for c in text if unicodedata.category(c) != 'Mn')
 
 
+# Common words that are NOT personal names (for false positive prevention)
+_NOT_NAMES = {
+    "el", "la", "los", "las", "un", "una", "de", "del", "al", "en", "por",
+    "con", "para", "y", "o", "que", "se", "su", "como", "mas", "pero",
+    "jugador", "futbolista", "delantero", "portero", "defensa", "mediocampista",
+    "centrocampista", "mediapunta", "extremo", "lateral", "central", "guardameta",
+    "entrenador", "capitan", "canterano", "fichaje", "lesionado", "titular", "suplente",
+    "goleador", "atacante", "volante", "arquero", "tecnico", "refuerzo",
+    "player", "forward", "striker", "midfielder", "defender", "goalkeeper", "coach",
+    "the", "and", "a", "an", "of", "for", "with", "from", "about", "by", "on", "in",
+    "giocatore", "joueur", "spieler", "attaccante", "difensore",
+}
+
+
+def _name_matches(text, player_name):
+    """Check if player_name appears in text as a contiguous substring,
+    and verify it's not a different person with a longer compound name.
+
+    Example: searching for 'Antonio Casas':
+    - 'antonio casas marca gol' → True (standalone)
+    - 'juan antonio casas ficha' → False (preceded by 'juan', a likely first name)
+    - 'el jugador antonio casas' → True ('jugador' is in _NOT_NAMES)
+    """
+    norm_name = _normalize(player_name)
+    norm_text = _normalize(text)
+
+    if norm_name not in norm_text:
+        return False
+
+    # Find all occurrences and check what precedes them
+    start = 0
+    has_standalone = False
+    while True:
+        idx = norm_text.find(norm_name, start)
+        if idx == -1:
+            break
+
+        # Check what's before this occurrence
+        before = norm_text[:idx].rstrip()
+        if not before:
+            has_standalone = True
+            break
+
+        # Get the word immediately before
+        words_before = before.split()
+        if not words_before:
+            has_standalone = True
+            break
+
+        preceding_word = words_before[-1]
+
+        # If preceding word is short (<=2 chars), common word, or not alphabetic → standalone
+        if (len(preceding_word) <= 2 or
+            preceding_word in _NOT_NAMES or
+            not preceding_word.isalpha()):
+            has_standalone = True
+            break
+
+        # This occurrence is preceded by a potential name → might be compound name
+        start = idx + 1
+
+    return has_standalone
+
+
 def _filter_by_relevance(items, player_name):
-    """Post-scrape filter: discard items that don't mention the player's surname.
-    This catches TikTok/YouTube/Reddit false positives like 'Venezia FC' general
-    news or 'Juan Antonio Casas' when searching for 'Antonio Casas'.
-    Extra strict for TikTok due to fuzzy search behavior.
+    """Post-scrape filter: discard items that don't mention the player.
+    Uses contiguous name matching to avoid false positives like
+    'Juan Antonio Casas' when searching for 'Antonio Casas'.
     """
     if not player_name or not items:
         return items
@@ -40,48 +103,18 @@ def _filter_by_relevance(items, player_name):
     if len(name_parts) < 2:
         return items  # Can't reliably filter with just one name
 
-    # Use last name as primary filter. For compound names like "Rodri Sanchez",
-    # surname = "sanchez". For "Antonio Casas", surname = "casas".
-    surname = _normalize(name_parts[-1])
-    # Also require first name nearby to avoid matching different people with same surname
-    first_name = _normalize(name_parts[0])
-
-    if len(surname) < 3:
-        return items  # Too short to filter reliably
-
     filtered = []
     removed = 0
     for item in items:
-        platform = item.get("platform", "")
-
-        # TikTok: strictest filtering - must appear in actual caption
-        if platform == "tiktok":
-            caption = _normalize(item.get("text", "") or "")
-            # Skip short/empty captions (often generic/unrelated)
-            if len(caption.strip()) < 30:
-                removed += 1
-                continue
-            # Prefer full name as contiguous substring
-            full_name = _normalize(player_name)
-            if full_name in caption:
-                filtered.append(item)
-                continue
-            # Fallback: both surname AND first name must appear
-            if surname not in caption or first_name not in caption:
-                removed += 1
-                continue
+        text = (
+            (item.get("text", "") or "") + " " +
+            (item.get("title", "") or "") + " " +
+            (item.get("author", "") or "")
+        )
+        if _name_matches(text, player_name):
             filtered.append(item)
         else:
-            # Standard filter for other platforms
-            text = _normalize(
-                (item.get("text", "") or "") + " " +
-                (item.get("title", "") or "") + " " +
-                (item.get("author", "") or "")
-            )
-            if surname in text and (first_name in text or len(name_parts) == 1):
-                filtered.append(item)
-            else:
-                removed += 1
+            removed += 1
 
     if removed:
         log.info(f"[social] Relevance filter: {len(items)} -> {len(filtered)} "
@@ -236,45 +269,6 @@ async def scrape_reddit(player_name, session):
     return items
 
 
-async def scrape_tiktok_mentions(player_name, session, club=None, max_items=None):
-    """Scrape TikTok mentions via Apify with retry.
-    NOTE: TikTok search ignores exact-match quotes, so we DON'T include
-    club name (it causes false positives like generic club news).
-    We rely on post-scrape relevance filter instead.
-    """
-    if not APIFY_TOKEN:
-        log.info("[social] No APIFY_TOKEN, skipping TikTok mentions")
-        return []
-
-    limit = max_items or MAX_TIKTOK_POSTS
-    # Don't use quotes or club name - TikTok ignores them and they cause FPs
-    search_query = player_name
-
-    input_data = {
-        "searchQueries": [search_query],
-        "resultsPerPage": limit,
-        "shouldDownloadVideos": False,
-    }
-
-    videos = await _apify_run_with_retry(session, TIKTOK_ACTOR, input_data, limit, "TikTok")
-    items = []
-    for video in videos:
-        text = video.get("text", "") or video.get("desc", "")
-        items.append({
-            "platform": "tiktok",
-            "author": video.get("authorMeta", {}).get("name", "")
-                or video.get("author", {}).get("uniqueId", "unknown"),
-            "text": text,
-            "url": video.get("webVideoUrl", "") or video.get("url", ""),
-            "likes": video.get("diggCount", video.get("likes", 0)) or 0,
-            "retweets": video.get("shareCount", video.get("shares", 0)) or 0,
-            "created_at": normalize_date(video.get("createTimeISO", video.get("created_at", ""))),
-        })
-
-    log.info(f"[social] TikTok: {len(items)} menciones")
-    return items
-
-
 async def scrape_google_web(player_name, session, club=None):
     """Search forums, blogs, and fan sites via Google News RSS with site: operator."""
     items = []
@@ -365,19 +359,17 @@ async def scrape_instagram_mentions(player_name, session, instagram_handle=None,
 async def scrape_all_social(player_name, twitter_handle=None, club=None, limit_multiplier=1, instagram_handle=None):
     # Override limits for deep scrape
     tw_limit = MAX_TWEETS_MENTIONS * limit_multiplier
-    tk_limit = MAX_TIKTOK_POSTS * limit_multiplier
     if limit_multiplier > 1:
-        log.info(f"[social] Deep scrape mode: {limit_multiplier}x limits (tw={tw_limit}, tk={tk_limit})")
+        log.info(f"[social] Deep scrape mode: {limit_multiplier}x limits (tw={tw_limit})")
 
     ig_limit = MAX_INSTAGRAM_MENTIONS * limit_multiplier
 
     async with aiohttp.ClientSession() as session:
-        twitter, reddit, youtube, tiktok, ig_mentions = await asyncio.gather(
+        twitter, reddit, youtube, ig_mentions = await asyncio.gather(
             scrape_twitter_mentions(player_name, session, twitter_handle, club,
                                     max_items=tw_limit),
             scrape_reddit(player_name, session),
             scrape_youtube(player_name, session),
-            scrape_tiktok_mentions(player_name, session, club, max_items=tk_limit),
             scrape_instagram_mentions(player_name, session, instagram_handle, max_items=ig_limit),
         )
 
@@ -388,8 +380,8 @@ async def scrape_all_social(player_name, twitter_handle=None, club=None, limit_m
     async with aiohttp.ClientSession() as session:
         web_results = await scrape_google_web(player_name, session, club)
 
-    total = twitter + reddit + youtube + tiktok + ig_mentions + telegram + web_results
-    log.info(f"[social] Total menciones (pre-filter): {len(total)} (Twitter={len(twitter)}, Reddit={len(reddit)}, YouTube={len(youtube)}, TikTok={len(tiktok)}, IG={len(ig_mentions)}, Telegram={len(telegram)}, Web={len(web_results)})")
+    total = twitter + reddit + youtube + ig_mentions + telegram + web_results
+    log.info(f"[social] Total menciones (pre-filter): {len(total)} (Twitter={len(twitter)}, Reddit={len(reddit)}, YouTube={len(youtube)}, IG={len(ig_mentions)}, Telegram={len(telegram)}, Web={len(web_results)})")
 
     # Post-scrape relevance filter: remove items that don't mention the player
     total = _filter_by_relevance(total, player_name)

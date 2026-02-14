@@ -32,7 +32,7 @@ APIFY_BASE = "https://api.apify.com/v2"
 TWITTER_ACTOR = "apidojo~tweet-scraper"
 INSTAGRAM_ACTOR = "apify~instagram-scraper"
 INSTAGRAM_HASHTAG_ACTOR = "apify~instagram-hashtag-scraper"
-TIKTOK_ACTOR = "clockworks~tiktok-scraper"
+SOFASCORE_ACTOR = "azzouzana~sofascore-scraper-pro"
 
 # Instagram mention search limits
 MAX_INSTAGRAM_MENTIONS = 50
@@ -142,7 +142,6 @@ MAX_TWEETS_PLAYER = 200
 MAX_INSTAGRAM_POSTS = 100
 MAX_REDDIT_POSTS = 100
 MAX_RSS_ITEMS = 100
-MAX_TIKTOK_POSTS = 60
 MAX_YOUTUBE_RESULTS = 40
 
 # First scan multiplier (deeper scrape for new players)
@@ -190,7 +189,7 @@ SOURCE_WEIGHTS = {
     "Gazzetta": 9, "Tuttosport": 7, "BBC Sport": 10, "The Guardian": 9,
     "Sky Sports": 8, "L'Equipe": 9, "Kicker": 8, "Al Jazeera Sports": 7,
     # Tier 4: Social platforms (lower credibility per item)
-    "twitter": 4, "reddit": 3, "youtube": 5, "tiktok": 2,
+    "twitter": 4, "reddit": 3, "youtube": 5,
     "instagram": 3, "telegram": 4,
     # Tier 5: Forums/blogs (lowest)
     "forocoches": 2, "mediavida": 2, "Football Espana": 4,

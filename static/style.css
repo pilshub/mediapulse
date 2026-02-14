@@ -505,6 +505,26 @@ svg circle {
     background: #1a1a1a;
 }
 
+/* Monthly calendar */
+.monthly-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+/* Line clamp for post text */
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* SofaScore rating colors */
+.rating-high { color: #00ba7c; }
+.rating-mid { color: #ffd166; }
+.rating-low { color: #f4212e; }
+
 /* Safe area for notched phones */
 @supports (padding: env(safe-area-inset-bottom)) {
     body { padding-bottom: env(safe-area-inset-bottom); }

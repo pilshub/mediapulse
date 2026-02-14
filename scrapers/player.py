@@ -7,8 +7,8 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from db import normalize_date
 from config import (
-    APIFY_TOKEN, APIFY_BASE, TWITTER_ACTOR, INSTAGRAM_ACTOR, TIKTOK_ACTOR,
-    MAX_TWEETS_PLAYER, MAX_INSTAGRAM_POSTS, MAX_TIKTOK_POSTS,
+    APIFY_TOKEN, APIFY_BASE, TWITTER_ACTOR, INSTAGRAM_ACTOR,
+    MAX_TWEETS_PLAYER, MAX_INSTAGRAM_POSTS,
 )
 
 log = logging.getLogger("agentradar")
@@ -170,65 +170,18 @@ async def scrape_player_instagram(instagram_handle, session, max_items=None):
     return items
 
 
-async def scrape_player_tiktok(tiktok_handle, session, max_items=None):
-    """Scrape player's own TikTok posts via Apify."""
-    if not tiktok_handle:
-        return []
-
-    limit = max_items or MAX_TIKTOK_POSTS
-    input_data = {
-        "profiles": [tiktok_handle],
-        "resultsPerPage": limit,
-        "shouldDownloadVideos": False,
-    }
-
-    videos = await _run_apify_actor(session, TIKTOK_ACTOR, input_data, limit)
-    items = []
-
-    for video in videos:
-        text = video.get("text", "") or video.get("desc", "")
-        likes = video.get("diggCount", video.get("likes", 0)) or 0
-        comments = video.get("commentCount", video.get("comments", 0)) or 0
-        shares = video.get("shareCount", video.get("shares", 0)) or 0
-        views = video.get("playCount", video.get("views", 0)) or 0
-
-        eng_rate = ((likes + comments + shares) / views) if views > 0 else 0
-
-        # TikTok thumbnail
-        image_url = video.get("videoMeta", {}).get("coverUrl", "") or video.get("covers", {}).get("default", "")
-
-        items.append({
-            "platform": "tiktok",
-            "text": text,
-            "url": video.get("webVideoUrl", "") or video.get("url", ""),
-            "likes": likes,
-            "comments": comments,
-            "shares": shares,
-            "views": views,
-            "engagement_rate": round(eng_rate, 6),
-            "media_type": "video",
-            "image_url": image_url,
-            "posted_at": normalize_date(video.get("createTimeISO", video.get("created_at", ""))),
-        })
-
-    log.info(f"[player] TikTok @{tiktok_handle}: {len(items)} posts")
-    return items
-
-
-async def scrape_all_player_posts(twitter_handle=None, instagram_handle=None, tiktok_handle=None, limit_multiplier=1):
+async def scrape_all_player_posts(twitter_handle=None, instagram_handle=None, limit_multiplier=1):
     # Override limits for deep scrape
     tw_limit = MAX_TWEETS_PLAYER * limit_multiplier
     ig_limit = MAX_INSTAGRAM_POSTS * limit_multiplier
-    tk_limit = MAX_TIKTOK_POSTS * limit_multiplier
     if limit_multiplier > 1:
-        log.info(f"[player] Deep scrape mode: {limit_multiplier}x limits (tw={tw_limit}, ig={ig_limit}, tk={tk_limit})")
+        log.info(f"[player] Deep scrape mode: {limit_multiplier}x limits (tw={tw_limit}, ig={ig_limit})")
 
     async with aiohttp.ClientSession() as session:
-        twitter, instagram, tiktok = await asyncio.gather(
+        twitter, instagram = await asyncio.gather(
             scrape_player_twitter(twitter_handle, session, max_items=tw_limit),
             scrape_player_instagram(instagram_handle, session, max_items=ig_limit),
-            scrape_player_tiktok(tiktok_handle, session, max_items=tk_limit),
         )
-    total = twitter + instagram + tiktok
+    total = twitter + instagram
     log.info(f"[player] Total posts del jugador: {len(total)}")
     return total

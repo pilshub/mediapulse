@@ -34,8 +34,6 @@ async def run_scan(player_data: dict, update_status=True):
     instagram = player_data.get("instagram")
     tm_id = player_data.get("transfermarkt_id")
     club = player_data.get("club")
-    tiktok = player_data.get("tiktok")
-
     try:
         if update_status:
             scan_status["progress"] = "Registrando jugador..."
@@ -83,7 +81,7 @@ async def run_scan(player_data: dict, update_status=True):
         if update_status:
             scan_status["progress"] = f"{progress_prefix}Redes: {len(social_items)} menciones. Escaneando posts del jugador..."
         try:
-            player_items = await scrape_all_player_posts(twitter, instagram, tiktok, limit_multiplier=scan_multiplier)
+            player_items = await scrape_all_player_posts(twitter, instagram, limit_multiplier=scan_multiplier)
         except Exception as e:
             log.error(f"Player scraper EXCEPTION: {e}", exc_info=True)
             player_items = []
@@ -113,6 +111,20 @@ async def run_scan(player_data: dict, update_status=True):
                     log.info(f"Stats saved: {tm_stats.get('appearances', 0)} apps, {tm_stats.get('goals', 0)} goals")
             except Exception as e:
                 log.error(f"Transfermarkt scraper EXCEPTION: {e}", exc_info=True)
+
+        # SofaScore ratings
+        sofascore_url = player_data.get("sofascore_url")
+        if sofascore_url:
+            try:
+                from scrapers.sofascore import scrape_sofascore_ratings
+                if update_status:
+                    scan_status["progress"] = f"{progress_prefix}Obteniendo ratings SofaScore..."
+                sofascore_ratings = await scrape_sofascore_ratings(sofascore_url)
+                if sofascore_ratings:
+                    await db.insert_sofascore_ratings(player_id, sofascore_ratings)
+                    log.info(f"[scan] SofaScore: {len(sofascore_ratings)} ratings saved")
+            except Exception as e:
+                log.error(f"[scan] SofaScore error: {e}", exc_info=True)
 
         # Google Trends
         trends_data = None

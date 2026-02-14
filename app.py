@@ -116,7 +116,7 @@ class PlayerInput(BaseModel):
     instagram: Optional[str] = None
     transfermarkt_id: Optional[str] = None
     club: Optional[str] = None
-    tiktok: Optional[str] = None
+    sofascore_url: Optional[str] = None
 
     @field_validator("name")
     @classmethod
@@ -126,7 +126,7 @@ class PlayerInput(BaseModel):
             raise ValueError("Nombre requerido (max 200 chars)")
         return v
 
-    @field_validator("twitter", "instagram", "tiktok", mode="before")
+    @field_validator("twitter", "instagram", mode="before")
     @classmethod
     def sanitize_handle(cls, v):
         if v is None:
@@ -231,7 +231,7 @@ async def list_players():
 async def set_player(player: PlayerInput):
     p = await db.get_or_create_player(
         player.name, player.twitter, player.instagram,
-        player.transfermarkt_id, player.club, player.tiktok,
+        player.transfermarkt_id, player.club,
     )
     return p
 
@@ -314,7 +314,7 @@ async def start_scan_endpoint(player: PlayerInput):
         "instagram": player.instagram,
         "transfermarkt_id": player.transfermarkt_id,
         "club": player.club,
-        "tiktok": player.tiktok,
+        "sofascore_url": player.sofascore_url,
     }
     asyncio.create_task(run_scan(player_data, update_status=True))
     return {"message": "Escaneo iniciado"}
@@ -918,6 +918,55 @@ table{{width:100%;border-collapse:collapse;}} a{{color:#1d9bf0;text-decoration:n
 MediaPulse - Monitorizacion OSINT de Jugadores | {datetime.now().strftime('%d/%m/%Y %H:%M')} | Confidencial - Uso interno
 </div>
 </body></html>"""
+
+
+# -- SofaScore Ratings --
+
+
+@app.get("/api/player/{player_id}/sofascore-ratings")
+async def get_sofascore_ratings(player_id: int, limit: int = 50):
+    ratings = await db.get_sofascore_ratings(player_id, limit)
+    if not ratings:
+        return {"ratings": [], "stats": None}
+    # Compute aggregate stats
+    valid = [r for r in ratings if r.get("rating")]
+    avg_rating = sum(r["rating"] for r in valid) / len(valid) if valid else 0
+    best = max(valid, key=lambda r: r["rating"]) if valid else None
+    worst = min(valid, key=lambda r: r["rating"]) if valid else None
+    # Trend: compare last 5 vs previous 5
+    recent = [r["rating"] for r in valid[:5]]
+    older = [r["rating"] for r in valid[5:10]]
+    trend = "estable"
+    if recent and older:
+        avg_recent = sum(recent) / len(recent)
+        avg_older = sum(older) / len(older)
+        if avg_recent > avg_older + 0.3:
+            trend = "mejorando"
+        elif avg_recent < avg_older - 0.3:
+            trend = "empeorando"
+    return {
+        "ratings": ratings,
+        "stats": {
+            "avg_rating": round(avg_rating, 2),
+            "matches": len(valid),
+            "best": best,
+            "worst": worst,
+            "trend": trend,
+        },
+    }
+
+
+# -- Activity by Platform --
+
+
+@app.get("/api/player/{player_id}/activity-by-platform")
+async def get_activity_by_platform(player_id: int):
+    return await db.get_activity_by_platform(player_id)
+
+
+@app.get("/api/player/{player_id}/monthly-activity")
+async def get_monthly_activity(player_id: int, year: int = 2026, month: int = 2):
+    return await db.get_monthly_activity(player_id, year, month)
 
 
 if __name__ == "__main__":

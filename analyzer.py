@@ -23,6 +23,7 @@ REGLAS DE RELEVANCIA (SE ESTRICTO):
 - El item DEBE mencionar a {player_name} de forma clara y directa para ser relevant
 - Si el item es sobre el CLUB ({club}) en general sin mencionar al jugador por nombre = NOT relevant
 - Jugadores con nombre similar pero de otro equipo = NOT relevant (ej: "Juan Antonio Casas" != "Antonio Casas")
+- NOMBRE EXACTO: El jugador se llama "{player_name}". Si un articulo menciona a una persona con nombre SIMILAR pero diferente (ej: "Juan Antonio Casas" cuando buscas "Antonio Casas"), marca relevance: "no".
 - Noticias genericas del equipo (resultados, fichajes de OTROS jugadores, ruedas de prensa genericas) = NOT relevant
 - Videos/posts de highlights del equipo que no mencionan al jugador = NOT relevant
 - MULTI-IDIOMA: Los items pueden estar en espanol, ingles, italiano, arabe, frances o aleman. Analiza el contenido en SU idioma original pero responde siempre en espanol.
@@ -65,7 +66,11 @@ async def analyze_batch(items, batch_size=30, player_name="", club=""):
         for j, item in enumerate(batch):
             text = item.get("title") or item.get("text") or ""
             source = item.get("source") or item.get("platform") or ""
-            texts.append(f"[{j}] ({source}) {text[:300]}")
+            full_text = item.get("full_text", "")
+            if full_text:
+                texts.append(f"[{j}] ({source}) {text[:200]}\n{full_text[:500]}")
+            else:
+                texts.append(f"[{j}] ({source}) {text[:300]}")
 
         prompt = "\n".join(texts)
 
@@ -306,15 +311,15 @@ async def analyze_images(items, player_name="", max_images=10):
 
 
 async def analyze_alert_content(alert_type, items, player_name, max_items=5):
-    """Generate a brief GPT analysis of WHY this alert matters — reads actual content."""
+    """Generate a brief GPT analysis of WHY this alert matters — reads actual article content."""
     if not client or not items:
         return None
     texts = []
     for item in items[:max_items]:
         title = item.get("title", "") or item.get("text", "")
-        summary = item.get("summary", "") or item.get("full_text", "")
+        content = item.get("full_text", "") or item.get("summary", "") or ""
         source = item.get("source", "") or item.get("platform", "")
-        texts.append(f"[{source}] {title[:150]} — {summary[:200]}")
+        texts.append(f"[{source}] {title[:200]}\n{content[:600]}")
 
     prompt = f"""Analiza brevemente estas {len(texts)} fuentes sobre {player_name} y explica en 2-3 frases:
 1. De que tratan exactamente (tema principal)
@@ -331,7 +336,7 @@ Responde en espanol, tono directo y profesional. Solo 2-3 frases, sin bullet poi
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
-            max_tokens=200,
+            max_tokens=350,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:

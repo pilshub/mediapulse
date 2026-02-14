@@ -95,11 +95,11 @@
                     <input id="modal-twitter" type="text" placeholder="Twitter" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-3 text-white text-sm focus:border-accent focus:outline-none">
                     <input id="modal-instagram" type="text" placeholder="Instagram" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-3 text-white text-sm focus:border-accent focus:outline-none">
                 </div>
-                <div class="grid grid-cols-3 gap-2 mt-2">
+                <div class="grid grid-cols-2 gap-2 mt-2">
                     <input id="modal-club" type="text" placeholder="Club" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-3 text-white text-sm focus:border-accent focus:outline-none">
                     <input id="modal-tm" type="text" placeholder="TM ID" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-3 text-white text-sm focus:border-accent focus:outline-none">
-                    <input id="modal-tiktok" type="text" placeholder="TikTok" class="bg-dark-900 border border-gray-700 rounded-lg px-3 py-3 text-white text-sm focus:border-accent focus:outline-none">
                 </div>
+                <input id="modal-sofascore" type="text" placeholder="SofaScore URL (opcional)" class="w-full bg-dark-900 border border-gray-700 rounded-lg px-3 py-3 text-white text-sm mt-2 focus:border-accent focus:outline-none">
                 <button onclick="addAndScanPlayer()" class="w-full bg-accent hover:bg-blue-600 text-white py-3 rounded-lg font-medium text-sm transition mt-3 touch-target">
                     Escanear nuevo jugador
                 </button>
@@ -133,7 +133,7 @@
                             class="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-accent focus:outline-none">
                     </div>
                 </div>
-                <div class="grid grid-cols-3 gap-4">
+                <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm text-gray-400 mb-1">Club</label>
                         <input id="inp-club" type="text" value="AD Ceuta" placeholder="Ej: Sevilla FC"
@@ -144,11 +144,11 @@
                         <input id="inp-tm" type="text" value="120095" placeholder="Opcional"
                             class="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-accent focus:outline-none">
                     </div>
-                    <div>
-                        <label class="block text-sm text-gray-400 mb-1">TikTok</label>
-                        <input id="inp-tiktok" type="text" placeholder="@handle"
-                            class="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-accent focus:outline-none">
-                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">SofaScore URL</label>
+                    <input id="inp-sofascore" type="text" placeholder="https://www.sofascore.com/player/nombre/12345"
+                        class="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-accent focus:outline-none">
                 </div>
                 <button onclick="launchScan()" class="w-full bg-accent hover:bg-blue-600 text-white py-3 rounded-lg font-semibold text-lg transition mt-4">
                     Iniciar Escaneo
@@ -240,6 +240,7 @@
             <button onclick="switchTab('redes')" data-tab="redes" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Menciones de terceros en redes sociales" data-tooltip-pos="below">Menciones</button>
             <button onclick="switchTab('actividad')" data-tab="actividad" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Publicaciones propias del jugador" data-tooltip-pos="below">Sus Redes</button>
             <button onclick="switchTab('alertas')" data-tab="alertas" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Alertas automaticas basadas en umbrales: prensa negativa, redes negativas, trending, fichajes, lesiones, polemicas e inactividad" data-tooltip-pos="below">Alertas <span id="alert-badge" class="hidden ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full"></span></button>
+            <button onclick="switchTab('rendimiento')" data-tab="rendimiento" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Rendimiento deportivo: estadisticas Transfermarkt, ratings SofaScore por partido, valor de mercado" data-tooltip-pos="below">Rendimiento</button>
             <button onclick="switchTab('historial')" data-tab="historial" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Historial de escaneos y comparacion" data-tooltip-pos="below">Historial</button>
             <button onclick="switchTab('historico')" data-tab="historico" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Graficos de evolucion temporal" data-tooltip-pos="below">Graficos</button>
             <button onclick="switchTab('inteligencia')" data-tab="inteligencia" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Analisis estrategico de riesgos por IA: narrativas, tendencias, stats, valor de mercado y colaboraciones" data-tooltip-pos="below">Inteligencia <span id="risk-badge" class="hidden ml-1 text-xs px-1.5 py-0.5 rounded-full"></span></button>
@@ -251,6 +252,7 @@
         <div id="tab-redes" class="tab-content hidden"></div>
         <div id="tab-actividad" class="tab-content hidden"></div>
         <div id="tab-alertas" class="tab-content hidden"></div>
+        <div id="tab-rendimiento" class="tab-content hidden"></div>
         <div id="tab-historial" class="tab-content hidden"></div>
         <div id="tab-historico" class="tab-content hidden"></div>
         <div id="tab-inteligencia" class="tab-content hidden"></div>
@@ -282,17 +284,17 @@
 
     <!-- Mobile Bottom Navigation -->
     <nav class="mobile-bottom-nav" id="mobile-nav">
-        <button onclick="switchTab('prensa')" data-tab="prensa" class="active">
+        <button onclick="switchTab('inteligencia')" data-tab="inteligencia" class="active">
+            <span class="nav-icon">🧠</span>Intel
+        </button>
+        <button onclick="switchTab('prensa')" data-tab="prensa">
             <span class="nav-icon">📰</span>Prensa
         </button>
-        <button onclick="switchTab('redes')" data-tab="redes">
-            <span class="nav-icon">💬</span>Menciones
-        </button>
         <button onclick="switchTab('actividad')" data-tab="actividad">
-            <span class="nav-icon">📱</span>Sus Redes
+            <span class="nav-icon">📱</span>Redes
         </button>
-        <button onclick="switchTab('inteligencia')" data-tab="inteligencia">
-            <span class="nav-icon">🧠</span>Intel
+        <button onclick="switchTab('rendimiento')" data-tab="rendimiento">
+            <span class="nav-icon">⚽</span>Stats
         </button>
         <button onclick="switchTab('alertas')" data-tab="alertas">
             <span class="nav-icon">⚠️</span>Alertas
