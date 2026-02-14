@@ -54,19 +54,20 @@ def _filter_by_relevance(items, player_name):
     for item in items:
         platform = item.get("platform", "")
 
-        # TikTok: stricter filtering - must appear in actual caption
+        # TikTok: strictest filtering - must appear in actual caption
         if platform == "tiktok":
             caption = _normalize(item.get("text", "") or "")
-            # Skip very short/empty captions (often generic/unrelated)
-            if len(caption.strip()) < 15:
+            # Skip short/empty captions (often generic/unrelated)
+            if len(caption.strip()) < 30:
                 removed += 1
                 continue
-            # Surname must appear in the caption itself, not just metadata
-            if surname not in caption:
-                removed += 1
+            # Prefer full name as contiguous substring
+            full_name = _normalize(player_name)
+            if full_name in caption:
+                filtered.append(item)
                 continue
-            # Require first name too for confidence
-            if first_name not in caption:
+            # Fallback: both surname AND first name must appear
+            if surname not in caption or first_name not in caption:
                 removed += 1
                 continue
             filtered.append(item)
@@ -165,6 +166,11 @@ async def scrape_twitter_mentions(player_name, session, twitter_handle=None, clu
     tweets = await _apify_run_with_retry(session, TWITTER_ACTOR, input_data, limit, "Twitter")
     items = []
     for tweet in tweets:
+        # Extract image URL if available
+        media_list = tweet.get("media") or tweet.get("entities", {}).get("media", [])
+        image_url = ""
+        if isinstance(media_list, list) and media_list:
+            image_url = media_list[0].get("media_url_https", "") or media_list[0].get("url", "")
         items.append({
             "platform": "twitter",
             "author": tweet.get("author", {}).get("userName", "")
@@ -174,6 +180,7 @@ async def scrape_twitter_mentions(player_name, session, twitter_handle=None, clu
             "likes": tweet.get("likeCount", tweet.get("favorite_count", 0)) or 0,
             "retweets": tweet.get("retweetCount", tweet.get("retweet_count", 0)) or 0,
             "created_at": normalize_date(tweet.get("createdAt", tweet.get("created_at", ""))),
+            "image_url": image_url,
         })
 
     log.info(f"[social] Twitter: {len(items)} menciones")
@@ -316,12 +323,19 @@ async def scrape_instagram_mentions(player_name, session, instagram_handle=None,
         return []
 
     limit = max_items or MAX_INSTAGRAM_MENTIONS
-    # Build hashtag from player name: "Rodri Sanchez" -> "rodrisanchez"
-    hashtag = player_name.lower().replace(" ", "").replace("-", "")
-    hashtags = [hashtag]
-    # Also search with handle if available
+    # Build multiple hashtag variants for better coverage
+    hashtag_base = player_name.lower().replace(" ", "").replace("-", "")
+    hashtags = [hashtag_base]
+    # With underscore: rodri_sanchez
+    hashtags.append(player_name.lower().replace(" ", "_").replace("-", "_"))
+    # Surname + futbol if surname is long enough
+    parts = player_name.split()
+    if len(parts) > 1 and len(parts[-1]) > 4:
+        hashtags.append(parts[-1].lower() + "futbol")
+    # Handle if available
     if instagram_handle:
         hashtags.append(instagram_handle.lower().replace("@", ""))
+    hashtags = list(set(h for h in hashtags if h))  # Dedup
 
     input_data = {
         "hashtags": hashtags,
@@ -332,6 +346,7 @@ async def scrape_instagram_mentions(player_name, session, instagram_handle=None,
     items = []
     for post in posts:
         text = post.get("caption", "") or ""
+        image_url = post.get("displayUrl", "") or post.get("thumbnailSrc", "") or post.get("previewUrl", "")
         items.append({
             "platform": "instagram",
             "author": post.get("ownerUsername", "") or post.get("owner", {}).get("username", "unknown"),
@@ -340,6 +355,7 @@ async def scrape_instagram_mentions(player_name, session, instagram_handle=None,
             "likes": post.get("likesCount", post.get("likes", 0)) or 0,
             "retweets": post.get("commentsCount", post.get("comments", 0)) or 0,
             "created_at": normalize_date(post.get("timestamp", post.get("taken_at", ""))),
+            "image_url": image_url,
         })
 
     log.info(f"[social] Instagram Mentions: {len(items)} posts (hashtags: {hashtags})")

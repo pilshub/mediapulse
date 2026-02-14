@@ -228,7 +228,8 @@ async function loadDashboard(playerId) {
 
     // Load all data in parallel
     const [summary, report, press, social, activity, alerts, stats, scans, imageIndex, weeklyReports,
-           sentByPlatform, activityPeaks, topInfluencers, idxHistory, intelligence] = await Promise.all([
+           sentByPlatform, activityPeaks, topInfluencers, idxHistory, intelligence,
+           activityCalendar, marketValueHistory, collaborations, trendsHistory] = await Promise.all([
         fetch(`/api/summary?player_id=${playerId}${dp}`).then(r => r.json()),
         fetch(`/api/report?player_id=${playerId}`).then(r => r.json()).catch(() => null),
         fetch(`/api/press?player_id=${playerId}${dp}`).then(r => r.json()),
@@ -244,6 +245,10 @@ async function loadDashboard(playerId) {
         fetch(`/api/player/${playerId}/top-influencers`).then(r => r.json()).catch(() => []),
         fetch(`/api/player/${playerId}/image-index-history`).then(r => r.json()).catch(() => []),
         fetch(`/api/player/${playerId}/intelligence`).then(r => r.json()).catch(() => null),
+        fetch(`/api/player/${playerId}/activity-calendar`).then(r => r.json()).catch(() => []),
+        fetch(`/api/player/${playerId}/market-value-history`).then(r => r.json()).catch(() => []),
+        fetch(`/api/player/${playerId}/collaborations`).then(r => r.json()).catch(() => []),
+        fetch(`/api/player/${playerId}/trends/history`).then(r => r.json()).catch(() => []),
     ]);
 
     // Store data for search/filter
@@ -288,11 +293,11 @@ async function loadDashboard(playerId) {
     // Render tabs
     renderPress(press, stats);
     renderSocial(social, stats, sentByPlatform, topInfluencers);
-    renderActivity(activity, stats, activityPeaks);
+    renderActivity(activity, stats, activityPeaks, activityCalendar);
     renderAlerts(alerts);
     renderHistorial(scans);
     renderHistorico(stats);
-    renderInteligencia(intelligence);
+    renderInteligencia(intelligence, marketValueHistory, collaborations, trendsHistory);
     renderInforme(weeklyReports, imageIndex);
 
     switchTab('prensa');
@@ -539,7 +544,10 @@ function renderSocial(items, stats, sentByPlatform, topInfluencers) {
                                             <span class="text-[10px] sm:text-xs font-medium text-gray-400">@${item.author || 'anon'}</span>
                                             <span class="text-[10px] sm:text-xs px-2 py-0.5 rounded-full badge-${item.sentiment_label || 'neutro'}">${item.sentiment_label || 'neutro'}</span>
                                         </div>
-                                        <p class="text-xs sm:text-sm text-gray-300 line-clamp-3">${escapeHtml(item.text || '')}</p>
+                                        <div class="flex gap-2">
+                                            <p class="text-xs sm:text-sm text-gray-300 line-clamp-3 flex-1">${escapeHtml(item.text || '')}</p>
+                                            ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0" loading="lazy" onerror="this.style.display='none'">` : ''}
+                                        </div>
                                         <div class="flex items-center gap-2 sm:gap-4 mt-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
                                             <span>${fmtNum(item.likes)} ${item.platform === 'youtube' ? 'vistas' : 'me gusta'}</span>
                                             <span>${fmtNum(item.retweets)} ${item.platform === 'reddit' ? 'comentarios' : item.platform === 'youtube' ? '' : 'RT'}</span>
@@ -627,13 +635,15 @@ function renderSocial(items, stats, sentByPlatform, topInfluencers) {
 }
 
 // -- Activity Tab --
-function renderActivity(items, stats, activityPeaks) {
+function renderActivity(items, stats, activityPeaks, activityCalendar) {
     const container = document.getElementById('tab-actividad');
     const topPosts = [...items].sort((a, b) => (b.likes || 0) - (a.likes || 0)).slice(0, 5);
     activityPeaks = activityPeaks || { hours: [], days: [] };
+    activityCalendar = activityCalendar || [];
 
     container.innerHTML = `
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        ${activityCalendar.length > 0 ? renderActivityCalendar(activityCalendar) : ''}
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 ${activityCalendar.length > 0 ? 'mt-4' : ''}">
             <div class="lg:col-span-2 order-2 lg:order-1">
                 <div class="bg-dark-700 rounded-xl border border-gray-800">
                     <div class="p-3 sm:p-4 border-b border-gray-800">
@@ -655,7 +665,10 @@ function renderActivity(items, stats, activityPeaks) {
                                             <span class="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-dark-500 text-gray-400">${item.media_type || 'text'}</span>
                                             <span class="text-[10px] sm:text-xs px-2 py-0.5 rounded-full badge-${item.sentiment_label || 'neutro'}">${item.sentiment_label || 'neutro'}</span>
                                         </div>
-                                        <p class="text-xs sm:text-sm text-gray-300 line-clamp-3">${escapeHtml(item.text || '')}</p>
+                                        <div class="flex gap-2">
+                                            <p class="text-xs sm:text-sm text-gray-300 line-clamp-3 flex-1">${escapeHtml(item.text || '')}</p>
+                                            ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0" loading="lazy" onerror="this.style.display='none'">` : ''}
+                                        </div>
                                         <div class="flex items-center gap-2 sm:gap-4 mt-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
                                             <span>${fmtNum(item.likes)} me gusta</span>
                                             <span>${fmtNum(item.comments)} comentarios</span>
@@ -750,6 +763,78 @@ function renderActivity(items, stats, activityPeaks) {
     }
 }
 
+// -- Activity Calendar (GitHub-style heatmap) --
+function renderActivityCalendar(data) {
+    const cellSize = 12, gap = 2, total = cellSize + gap;
+    const weeks = 52, days = 7;
+    const leftMargin = 28, topMargin = 20;
+    const svgW = leftMargin + weeks * total + 10;
+    const svgH = topMargin + days * total + 10;
+    const colors = ['#161616', '#0e4429', '#006d32', '#26a641', '#39d353'];
+
+    // Build day -> count map
+    const countMap = {};
+    let maxCount = 0;
+    data.forEach(d => { countMap[d.day] = d.count; if (d.count > maxCount) maxCount = d.count; });
+
+    // Generate 52 weeks of dates ending today
+    const today = new Date();
+    const rects = [];
+    const monthLabels = [];
+    let lastMonth = -1;
+
+    for (let w = 0; w < weeks; w++) {
+        for (let d = 0; d < days; d++) {
+            const date = new Date(today);
+            date.setDate(today.getDate() - ((weeks - 1 - w) * 7 + (6 - d)));
+            const key = date.toISOString().slice(0, 10);
+            const count = countMap[key] || 0;
+            const level = count === 0 ? 0 : count <= 1 ? 1 : count <= 3 ? 2 : count <= 5 ? 3 : 4;
+            const x = leftMargin + w * total;
+            const y = topMargin + d * total;
+            const dayNames = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+            rects.push(`<rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" rx="2" fill="${colors[level]}"><title>${key}: ${count} posts</title></rect>`);
+
+            // Month labels
+            if (date.getMonth() !== lastMonth && date.getDate() <= 7) {
+                const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+                monthLabels.push(`<text x="${x}" y="${topMargin - 6}" fill="#71767b" font-size="9">${monthNames[date.getMonth()]}</text>`);
+                lastMonth = date.getMonth();
+            }
+        }
+    }
+
+    // Day labels (Mon, Wed, Fri)
+    const dayLabels = ['', 'L', '', 'X', '', 'V', ''];
+    const dayTexts = dayLabels.map((l, i) => l ? `<text x="0" y="${topMargin + i * total + cellSize - 2}" fill="#71767b" font-size="9">${l}</text>` : '').join('');
+
+    const totalPosts = data.reduce((s, d) => s + d.count, 0);
+    const activeDays = data.filter(d => d.count > 0).length;
+
+    return `
+        <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+            <div class="flex items-center justify-between mb-3">
+                <h4 class="text-sm font-semibold text-white">Calendario de Actividad</h4>
+                <div class="flex items-center gap-3 text-[10px] text-gray-500">
+                    <span>${totalPosts} posts</span>
+                    <span>${activeDays} dias activos</span>
+                    <div class="flex items-center gap-1">
+                        <span>Menos</span>
+                        ${colors.map(c => `<span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:${c}"></span>`).join('')}
+                        <span>Mas</span>
+                    </div>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <svg width="${svgW}" height="${svgH}" class="min-w-[700px]">
+                    ${dayTexts}
+                    ${monthLabels.join('')}
+                    ${rects.join('')}
+                </svg>
+            </div>
+        </div>`;
+}
+
 // -- Alerts Tab --
 function renderAlerts(items) {
     const container = document.getElementById('tab-alertas');
@@ -778,14 +863,28 @@ function renderAlerts(items) {
                         ${alertFilter.severity || alertFilter.unread ? '<button onclick="clearAlertFilters()" class="filter-btn touch-target text-red-400">Limpiar</button>' : ''}
                     </div>
                 </div>
+                <p class="text-xs text-gray-500 mt-2">Alertas automaticas basadas en umbrales: 3+ noticias negativas, &gt;40% menciones negativas, alta presencia mediatica, rumores de fichaje, lesiones, polemicas o inactividad en redes.</p>
             </div>
             <div class="item-list">
                 ${filtered.length === 0 ? '<div class="p-8 text-center text-gray-600">Sin alertas - todo tranquilo</div>' :
                 filtered.map(item => {
                     let sourcesHtml = '';
+                    let articleDatesHtml = '';
                     try {
                         const data = typeof item.data_json === 'string' ? JSON.parse(item.data_json) : item.data_json;
                         if (data) {
+                            // Article date range
+                            const pubDates = (data.published_dates || []).filter(d => d);
+                            if (pubDates.length > 0) {
+                                const parsed = pubDates.map(d => new Date(d)).filter(d => !isNaN(d.getTime())).sort((a,b) => a-b);
+                                if (parsed.length > 0) {
+                                    const oldest = parsed[0].toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                                    const newest = parsed[parsed.length-1].toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                                    articleDatesHtml = oldest === newest
+                                        ? `<span class="text-[10px] text-gray-500">| Articulos: ${oldest}</span>`
+                                        : `<span class="text-[10px] text-gray-500">| Articulos: ${oldest} - ${newest}</span>`;
+                                }
+                            }
                             const titles = data.titles || data.samples || [];
                             const urls = data.urls || [];
                             const platformsList = data.platforms_list || data.sources_list || [];
@@ -829,8 +928,9 @@ function renderAlerts(items) {
                                 </div>
                                 <p class="text-xs text-gray-400 leading-relaxed">${escapeHtml(item.message)}</p>
                                 ${sourcesHtml}
-                                <div class="flex items-center gap-3 mt-2">
-                                    <span class="text-[10px] text-gray-600">${formatDate(item.created_at)}</span>
+                                <div class="flex items-center gap-3 mt-2 flex-wrap">
+                                    <span class="text-[10px] text-gray-600">Detectado: ${formatDate(item.created_at)}</span>
+                                    ${articleDatesHtml}
                                     ${!item.read ? `<button onclick="markAlertRead(${item.id})" class="text-xs text-accent hover:underline touch-target">Marcar leida</button>` : ''}
                                     <button onclick="dismissAlert(${item.id})" class="text-xs text-red-400 hover:underline touch-target">Descartar</button>
                                 </div>
@@ -1152,7 +1252,7 @@ function renderImageIndex(idx, history) {
 }
 
 // -- Informe Tab (Weekly Reports) --
-function renderInteligencia(intel) {
+function renderInteligencia(intel, marketValueHistory, collaborations, trendsHistory) {
     const container = document.getElementById('tab-inteligencia');
     if (!intel || !intel.narrativas) {
         container.innerHTML = `
@@ -1206,6 +1306,9 @@ function renderInteligencia(intel) {
 
     container.innerHTML = `
         <div class="space-y-4">
+            <div class="bg-dark-800 rounded-lg px-4 py-2.5 border border-gray-800/50">
+                <p class="text-xs text-gray-500">Analisis estrategico de riesgos generado por IA. Evalua narrativas mediaticas, tendencias de busqueda y senales tempranas agrupando multiples fuentes para detectar patrones que las alertas individuales no captan.</p>
+            </div>
             <!-- Risk Score Header -->
             <div class="bg-dark-700 rounded-xl border border-gray-800 p-4 sm:p-5">
                 <div class="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
@@ -1225,11 +1328,6 @@ function renderInteligencia(intel) {
                     </div>
                     <div class="flex-1 min-w-0">
                         <p class="text-sm text-gray-300 leading-relaxed mb-3">${escapeHtml(intel.resumen || '')}</p>
-                        ${intel.recomendacion ? `
-                            <div class="bg-accent/10 border border-accent/30 rounded-lg p-3">
-                                <div class="text-[10px] text-accent uppercase tracking-wider font-semibold mb-1">Recomendacion Principal</div>
-                                <p class="text-sm text-white">${escapeHtml(intel.recomendacion)}</p>
-                            </div>` : ''}
                     </div>
                     ${riskSparkHtml}
                 </div>
@@ -1244,44 +1342,88 @@ function renderInteligencia(intel) {
                 </div>
             </div>
 
-            <!-- Stats & Trends Row -->
-            ${intel.stats || intel.trends ? `
+            <!-- Stats, Trends, Market Value, Collaborations -->
+            ${intel.stats || intel.trends || (marketValueHistory && marketValueHistory.length > 0) || (collaborations && collaborations.length > 0) ? `
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 ${intel.stats ? (() => {
                     const cs = intel.stats.current_season || {};
                     const hasCurrent = (cs.appearances || 0) > 0;
+                    const maxApps = Math.max(intel.stats.appearances || 1, 1);
                     return `
                 <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
                     <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Rendimiento Deportivo</h3>
                     ${hasCurrent ? `
                     <div class="text-[10px] text-accent uppercase tracking-wider mb-2 font-semibold">Temporada ${intel.stats.season || 'actual'}</div>
-                    <div class="grid grid-cols-2 gap-2 text-center mb-3">
-                        <div><div class="text-lg font-bold text-white">${cs.appearances || 0}</div><div class="text-[10px] text-gray-500">Partidos</div></div>
-                        <div><div class="text-lg font-bold text-green-400">${cs.goals || 0}</div><div class="text-[10px] text-gray-500">Goles</div></div>
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div class="bg-dark-900 rounded-lg p-2.5 text-center">
+                            <div class="text-lg font-bold text-white">${cs.appearances || 0}</div>
+                            <div class="text-[10px] text-gray-500">Partidos</div>
+                        </div>
+                        <div class="bg-dark-900 rounded-lg p-2.5 text-center">
+                            <div class="text-lg font-bold text-green-400">${cs.goals || 0}</div>
+                            <div class="text-[10px] text-gray-500">Goles</div>
+                        </div>
                     </div>
                     <div class="text-[10px] text-gray-600 uppercase tracking-wider mb-2 pt-2 border-t border-gray-800">Carrera</div>` : ''}
-                    <div class="grid grid-cols-3 gap-2 text-center">
-                        <div><div class="text-base font-bold text-white">${intel.stats.appearances || 0}</div><div class="text-[10px] text-gray-500">Partidos</div></div>
-                        <div><div class="text-base font-bold text-green-400">${intel.stats.goals || 0}</div><div class="text-[10px] text-gray-500">Goles</div></div>
-                        <div><div class="text-base font-bold text-blue-400">${intel.stats.assists || 0}</div><div class="text-[10px] text-gray-500">Asist.</div></div>
-                        <div><div class="text-base font-bold text-gray-300">${intel.stats.minutes ? (intel.stats.minutes).toLocaleString() : 0}'</div><div class="text-[10px] text-gray-500">Minutos</div></div>
-                        <div><div class="text-base font-bold text-yellow-400">${intel.stats.yellows || 0}</div><div class="text-[10px] text-gray-500">Amarillas</div></div>
-                        <div><div class="text-base font-bold text-red-400">${intel.stats.reds || 0}</div><div class="text-[10px] text-gray-500">Rojas</div></div>
-                    </div>
-                    ${intel.stats.competitions && intel.stats.competitions.length > 0 ? `
-                    <div class="mt-3 pt-3 border-t border-gray-800 max-h-32 overflow-y-auto">
-                        ${intel.stats.competitions.slice(0, 8).map(c => `
-                            <div class="flex justify-between text-xs text-gray-400 mb-1">
-                                <span>${escapeHtml(c.name)}</span>
-                                <span class="text-white">${c.appearances} pj, ${c.goals} g</span>
+                    <div class="space-y-2">
+                        ${[
+                            { label: 'Partidos', value: intel.stats.appearances || 0, color: '#e7e9ea', max: maxApps },
+                            { label: 'Goles', value: intel.stats.goals || 0, color: '#00ba7c', max: maxApps },
+                            { label: 'Asistencias', value: intel.stats.assists || 0, color: '#1d9bf0', max: maxApps },
+                            { label: 'Minutos', value: intel.stats.minutes || 0, color: '#a78bfa', max: (intel.stats.appearances || 1) * 90, fmt: true },
+                        ].map(s => `
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-gray-400">${s.label}</span>
+                                    <span class="font-semibold" style="color:${s.color}">${s.fmt ? s.value.toLocaleString() + "'" : s.value}</span>
+                                </div>
+                                <div class="w-full h-1 bg-dark-900 rounded-full overflow-hidden">
+                                    <div class="h-full rounded-full stat-progress" style="width:${Math.min(100, (s.value / s.max) * 100)}%;background:${s.color}"></div>
+                                </div>
                             </div>
                         `).join('')}
+                        <div class="flex gap-3 pt-1">
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-3 h-3 rounded bg-yellow-500/20 flex items-center justify-center text-[8px] text-yellow-400 font-bold">${intel.stats.yellows || 0}</span>
+                                <span class="text-[10px] text-gray-500">Amarillas</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-3 h-3 rounded bg-red-500/20 flex items-center justify-center text-[8px] text-red-400 font-bold">${intel.stats.reds || 0}</span>
+                                <span class="text-[10px] text-gray-500">Rojas</span>
+                            </div>
+                        </div>
+                    </div>
+                    ${intel.stats.competitions && intel.stats.competitions.length > 0 ? `
+                    <div class="mt-3 pt-3 border-t border-gray-800">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="text-gray-600 text-[10px] uppercase">
+                                    <th class="text-left pb-1.5">Competicion</th>
+                                    <th class="text-center pb-1.5">PJ</th>
+                                    <th class="text-center pb-1.5">G</th>
+                                    <th class="text-center pb-1.5">A</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${intel.stats.competitions.slice(0, 8).map(c => `
+                                <tr class="border-t border-gray-800/50">
+                                    <td class="py-1 text-gray-400 truncate max-w-[120px]">${escapeHtml(c.name)}</td>
+                                    <td class="py-1 text-center text-white font-medium">${c.appearances || 0}</td>
+                                    <td class="py-1 text-center text-green-400">${c.goals || 0}</td>
+                                    <td class="py-1 text-center text-blue-400">${c.assists || 0}</td>
+                                </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
                     </div>` : ''}
                 </div>`;
                 })() : ''}
                 ${intel.trends ? `
                 <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
-                    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Google Trends (30 dias)</h3>
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Google Trends (30 dias)</h3>
+                        ${trendsHistory && trendsHistory.length > 1 ? `<button onclick="document.getElementById('trends-hist').classList.toggle('hidden')" class="text-[10px] text-accent hover:underline">Historico</button>` : ''}
+                    </div>
                     <div class="grid grid-cols-3 gap-3 text-center mb-3">
                         <div>
                             <div class="text-lg font-bold text-white">${intel.trends.average_interest || 0}</div>
@@ -1308,6 +1450,48 @@ function renderInteligencia(intel) {
                         return '<div class="flex justify-center"><svg viewBox="0 0 ' + (sw+6) + ' ' + (sh+6) + '" class="w-full max-w-[280px] overflow-visible" preserveAspectRatio="xMidYMid meet"><polyline points="' + pts + '" fill="none" stroke="' + trendCol + '" stroke-width="2" stroke-linejoin="round"/><circle cx="' + sw + '" cy="' + (sh - ((vals[vals.length-1] - mn) / rng) * sh) + '" r="3" fill="' + trendCol + '"/></svg></div>';
                     })() : ''}
                     <div class="text-[10px] text-gray-600 text-center mt-1">${intel.trends.data_points || 0} puntos de datos</div>
+                    ${trendsHistory && trendsHistory.length > 1 ? `
+                    <div id="trends-hist" class="hidden mt-3 pt-3 border-t border-gray-800">
+                        <canvas id="chart-trends-history" height="120"></canvas>
+                    </div>` : ''}
+                </div>` : ''}
+                ${marketValueHistory && marketValueHistory.length > 0 ? `
+                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+                    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Historial Valor de Mercado</h3>
+                    ${(() => {
+                        const last = marketValueHistory[marketValueHistory.length - 1];
+                        const prev = marketValueHistory.length > 1 ? marketValueHistory[marketValueHistory.length - 2] : null;
+                        const delta = prev && prev.market_value_numeric > 0 ? ((last.market_value_numeric - prev.market_value_numeric) / prev.market_value_numeric * 100) : null;
+                        return `
+                        <div class="flex items-baseline gap-2 mb-3">
+                            <span class="text-xl font-bold text-white">${escapeHtml(last.market_value || '')}</span>
+                            ${delta !== null ? `<span class="text-sm font-semibold ${delta >= 0 ? 'text-green-400' : 'text-red-400'}">${delta >= 0 ? '&#9650;' : '&#9660;'} ${Math.abs(delta).toFixed(1)}%</span>` : ''}
+                        </div>`;
+                    })()}
+                    <canvas id="chart-market-value" height="100"></canvas>
+                    <div class="text-[10px] text-gray-600 text-center mt-1">${marketValueHistory.length} registros</div>
+                </div>` : ''}
+                ${collaborations && collaborations.length > 0 ? `
+                <div class="bg-dark-700 rounded-xl border border-gray-800 p-4">
+                    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Marcas y Colaboraciones</h3>
+                    <div class="space-y-2">
+                        ${collaborations.map(c => {
+                            const typeColors = { colaboracion: '#00ba7c', uso: '#1d9bf0', mencion: '#71767b' };
+                            const typeLabels = { colaboracion: 'Colaboracion', uso: 'Uso', mencion: 'Mencion' };
+                            const col = typeColors[c.type] || '#71767b';
+                            return `
+                            <div class="flex items-center justify-between bg-dark-900 rounded-lg p-2.5">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm font-semibold text-white">${escapeHtml(c.brand || '')}</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style="background:${col}20;color:${col};border:1px solid ${col}40">${typeLabels[c.type] || c.type}</span>
+                                </div>
+                                <div class="flex items-center gap-2 text-[10px] text-gray-500">
+                                    <span>${c.count || 0}x</span>
+                                    ${c.sources ? `<span>${c.sources.slice(0, 2).join(', ')}</span>` : ''}
+                                </div>
+                            </div>`;
+                        }).join('')}
+                    </div>
                 </div>` : ''}
             </div>` : ''}
 
@@ -1338,11 +1522,34 @@ function renderInteligencia(intel) {
                             </div>
                             <h4 class="text-sm font-semibold text-white mb-1">${escapeHtml(n.titulo || '')}</h4>
                             <p class="text-xs text-gray-400 leading-relaxed">${escapeHtml(n.descripcion || '')}</p>
-                            ${n.recomendacion ? `
+                            ${(n.sources && n.sources.length > 0) ? (() => {
+                                const uid = 'nsrc-' + (n.id || Math.random().toString(36).substr(2,6));
+                                const sentColors = { positivo: 'text-green-400', neutro: 'text-yellow-400', negativo: 'text-red-400' };
+                                const typeIcons = { press: '&#128240;', social: '&#128172;', activity: '&#128241;' };
+                                return `
                                 <div class="mt-2 pt-2 border-t border-gray-800">
-                                    <span class="text-[10px] text-accent uppercase tracking-wider font-semibold">Rec:</span>
-                                    <span class="text-xs text-gray-300 ml-1">${escapeHtml(n.recomendacion)}</span>
-                                </div>` : ''}
+                                    <button onclick="document.getElementById('${uid}').classList.toggle('hidden')"
+                                            class="text-[10px] text-gray-500 uppercase tracking-wider hover:text-gray-300 transition flex items-center gap-1">
+                                        <span>Fuentes (${n.sources.length})</span>
+                                        <span class="text-[8px]">&#9660;</span>
+                                    </button>
+                                    <div id="${uid}" class="hidden mt-2 space-y-1.5">
+                                        ${n.sources.map(s => `
+                                            <div class="bg-dark-900 rounded-lg p-2 flex items-start gap-2 alert-source-card">
+                                                <span class="text-xs flex-shrink-0">${typeIcons[s.type] || '&#128196;'}</span>
+                                                <div class="flex-1 min-w-0">
+                                                    <div class="flex items-center gap-1.5">
+                                                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-dark-500 text-gray-500">${escapeHtml(s.source || '')}</span>
+                                                        <span class="text-[10px] ${sentColors[s.sentiment] || 'text-gray-500'}">${s.sentiment || ''}</span>
+                                                    </div>
+                                                    <p class="text-xs text-gray-300 mt-1 leading-relaxed truncate">${escapeHtml(s.title || '')}</p>
+                                                    ${s.url ? `<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener" class="inline-block mt-1 text-[10px] text-accent hover:underline">Ver fuente &rarr;</a>` : ''}
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>`;
+                            })() : ''}
                         </div>`;
                     }).join('')}
                 </div>
@@ -1379,6 +1586,78 @@ function renderInteligencia(intel) {
             </div>` : ''}
         </div>
     `;
+
+    // Market Value History chart
+    if (marketValueHistory && marketValueHistory.length > 1) {
+        const mvCtx = document.getElementById('chart-market-value');
+        if (mvCtx) {
+            if (charts['chart-market-value']) charts['chart-market-value'].destroy();
+            charts['chart-market-value'] = new Chart(mvCtx, {
+                type: 'line',
+                data: {
+                    labels: marketValueHistory.map(h => formatDate(h.recorded_at)),
+                    datasets: [{
+                        data: marketValueHistory.map(h => h.market_value_numeric || 0),
+                        borderColor: '#1d9bf0',
+                        backgroundColor: 'rgba(29, 155, 240, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#1d9bf0',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const mv = marketValueHistory[ctx.dataIndex];
+                                    return mv ? mv.market_value : '';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#71767b', font: { size: 9 }, maxTicksLimit: 6 }, grid: { display: false } },
+                        y: { ticks: { color: '#71767b', font: { size: 9 }, callback: v => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v }, grid: { color: '#1a1a1a' } }
+                    }
+                }
+            });
+        }
+    }
+
+    // Trends History overlay chart
+    if (trendsHistory && trendsHistory.length > 1) {
+        const thCtx = document.getElementById('chart-trends-history');
+        if (thCtx) {
+            const thColors = ['#1d9bf0', '#00ba7c', '#ffd166', '#f4212e', '#a855f7', '#e1306c', '#00f2ea', '#ff4500', '#f97316', '#71767b'];
+            const datasets = trendsHistory.slice(-5).map((snap, i) => ({
+                label: formatDate(snap.scraped_at),
+                data: (snap.timeline || []).map(t => t.value),
+                borderColor: thColors[i % thColors.length],
+                borderWidth: 1.5,
+                pointRadius: 0,
+                tension: 0.3,
+            }));
+            const maxLen = Math.max(...datasets.map(d => d.data.length));
+            const labels = Array.from({ length: maxLen }, (_, i) => i + 1);
+            if (charts['chart-trends-history']) charts['chart-trends-history'].destroy();
+            charts['chart-trends-history'] = new Chart(thCtx, {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { labels: { color: '#71767b', font: { size: 9 } } } },
+                    scales: {
+                        x: { display: false },
+                        y: { ticks: { color: '#71767b', font: { size: 9 } }, grid: { color: '#1a1a1a' } }
+                    }
+                }
+            });
+        }
+    }
 }
 
 function renderInforme(weeklyReports, imageIndex) {
@@ -2002,18 +2281,20 @@ function renderPlatformBreakdown(items) {
 function formatDate(dateStr) {
     if (!dateStr) return '';
     try {
-        const d = new Date(dateStr);
+        const raw = dateStr + (dateStr.includes('Z') || dateStr.includes('+') || dateStr.includes('-', 10) ? '' : 'Z');
+        const d = new Date(raw);
         if (isNaN(d.getTime())) return dateStr;
-        return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+        return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Madrid' });
     } catch { return dateStr; }
 }
 
 function formatDateTime(dateStr) {
     if (!dateStr) return '-';
     try {
-        const d = new Date(dateStr);
+        const raw = dateStr + (dateStr.includes('Z') || dateStr.includes('+') || dateStr.includes('-', 10) ? '' : 'Z');
+        const d = new Date(raw);
         if (isNaN(d.getTime())) return dateStr;
-        return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
     } catch { return dateStr; }
 }
 

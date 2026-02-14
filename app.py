@@ -481,6 +481,13 @@ async def get_intelligence(player_id: int):
     if not report:
         return None
     narrativas = await db.get_narrativas_active(player_id)
+    # Resolve item references to actual content for each narrativa
+    for n in narrativas:
+        item_ids = n.get("items", [])
+        if item_ids:
+            n["sources"] = await db.resolve_narrativa_items(item_ids)
+        else:
+            n["sources"] = []
     history = await db.get_intelligence_history(player_id, 10)
     stats = await db.get_player_stats(player_id)
     trends = await db.get_player_trends(player_id)
@@ -514,6 +521,26 @@ async def get_player_stats(player_id: int):
 @app.get("/api/player/{player_id}/trends")
 async def get_player_trends(player_id: int):
     return await db.get_player_trends(player_id)
+
+
+@app.get("/api/player/{player_id}/activity-calendar")
+async def get_activity_calendar(player_id: int, days: int = 365):
+    return await db.get_activity_calendar(player_id, days)
+
+
+@app.get("/api/player/{player_id}/market-value-history")
+async def get_market_value_history(player_id: int):
+    return await db.get_market_value_history(player_id)
+
+
+@app.get("/api/player/{player_id}/collaborations")
+async def get_collaborations(player_id: int):
+    return await db.get_brand_collaborations(player_id)
+
+
+@app.get("/api/player/{player_id}/trends/history")
+async def get_trends_history(player_id: int, limit: int = 10):
+    return await db.get_player_trends_history(player_id, limit)
 
 
 @app.get("/api/player/{player_id}/intelligence/history")

@@ -483,6 +483,28 @@ svg circle {
 .sev-medio { background: #ffd166; color: #1a1a1a; }
 .sev-bajo { background: #00ba7c; color: white; }
 
+/* Stat progress bars */
+.stat-progress {
+    transition: width 0.8s ease;
+}
+
+/* Activity calendar */
+.activity-calendar rect {
+    transition: opacity 0.15s;
+}
+.activity-calendar rect:hover {
+    stroke: #e7e9ea;
+    stroke-width: 1;
+}
+
+/* Collaboration badges */
+.collab-card {
+    transition: all 0.2s;
+}
+.collab-card:hover {
+    background: #1a1a1a;
+}
+
 /* Safe area for notched phones */
 @supports (padding: env(safe-area-inset-bottom)) {
     body { padding-bottom: env(safe-area-inset-bottom); }

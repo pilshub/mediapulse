@@ -11,6 +11,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import SPANISH_PRESS_FEEDS, GOOGLE_NEWS_RSS, GOOGLE_NEWS_RSS_INTL, MAX_RSS_ITEMS, PRESS_SITE_SEARCH
+from db import normalize_date
 
 log = logging.getLogger("agentradar")
 
@@ -240,15 +241,18 @@ async def scrape_all_press(player_name, club=None, limit_multiplier=1):
             seen.add(item["url"])
             unique.append(item)
 
-    # Relevance filter: discard items that don't mention the player's last name
-    last_name = _normalize(player_name.split()[-1]) if player_name else ""
+    # Relevance filter: require BOTH first name AND last name to avoid false positives
+    # e.g. "Joaquín Sánchez" must NOT match when searching "Rodri Sánchez"
+    name_parts = player_name.strip().split() if player_name else []
+    last_name = _normalize(name_parts[-1]) if name_parts else ""
+    first_name = _normalize(name_parts[0]) if len(name_parts) > 1 else ""
     if last_name and len(last_name) > 2:
         filtered = []
         for item in unique:
             text = _normalize(item.get("title", "") + " " + item.get("summary", ""))
-            if last_name in text:
+            if last_name in text and (first_name in text or len(name_parts) == 1):
                 filtered.append(item)
-        log.info(f"[press] Relevance filter: {len(unique)} -> {len(filtered)} (last name '{last_name}')")
+        log.info(f"[press] Relevance filter: {len(unique)} -> {len(filtered)} (name='{first_name} {last_name}')")
         unique = filtered
 
     log.info(f"[press] Total: {len(unique)} noticias (Google={len(google)}, SiteSearch={len(site_search)}, RSS={len(rss_feeds)})")
@@ -269,4 +273,12 @@ def _parse_date(entry):
                 return datetime(*tp[:6]).isoformat()
             except Exception:
                 pass
-    return entry.get("published", entry.get("updated", datetime.now().isoformat()))
+    # Try parsing raw date strings before giving up
+    for field in ["published", "updated"]:
+        raw = entry.get(field, "")
+        if raw:
+            parsed = normalize_date(raw)
+            if parsed:
+                return parsed
+    # Return empty — DB will use scraped_at as fallback, NOT datetime.now()
+    return ""

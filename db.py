@@ -254,6 +254,22 @@ async def init_db():
             )
         """)
 
+        # D4: Market value history
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS market_value_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                player_id INTEGER NOT NULL,
+                market_value TEXT,
+                market_value_numeric INTEGER DEFAULT 0,
+                recorded_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY (player_id) REFERENCES players(id)
+            )
+        """)
+        try:
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_mvh_player ON market_value_history(player_id, recorded_at)")
+        except Exception:
+            pass
+
         # Migrations - safe to re-run
         migrations = [
             "ALTER TABLE social_mentions ADD COLUMN content_hash TEXT",
@@ -264,6 +280,11 @@ async def init_db():
             "ALTER TABLE players ADD COLUMN nationality TEXT",
             "ALTER TABLE players ADD COLUMN position TEXT",
             "ALTER TABLE scan_reports ADD COLUMN image_index REAL",
+            # D1: Image URLs for posts and mentions
+            "ALTER TABLE player_posts ADD COLUMN image_url TEXT",
+            "ALTER TABLE social_mentions ADD COLUMN image_url TEXT",
+            # D3: Brand collaboration details
+            "ALTER TABLE scan_reports ADD COLUMN brand_details_json TEXT",
         ]
         for m in migrations:
             try:
@@ -457,8 +478,8 @@ async def insert_social_mentions(player_id, items):
                 ch = _content_hash(item.get("platform"), item.get("author"), item.get("text"))
                 await conn.execute(
                     """INSERT OR IGNORE INTO social_mentions
-                    (player_id, platform, author, text, url, likes, retweets, sentiment, sentiment_label, created_at, content_hash)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (player_id, platform, author, text, url, likes, retweets, sentiment, sentiment_label, created_at, content_hash, image_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         player_id,
                         item.get("platform"),
@@ -471,6 +492,7 @@ async def insert_social_mentions(player_id, items):
                         item.get("sentiment_label"),
                         item.get("created_at"),
                         ch,
+                        item.get("image_url"),
                     ),
                 )
                 inserted += 1
@@ -488,8 +510,8 @@ async def insert_player_posts(player_id, items):
                 await conn.execute(
                     """INSERT OR IGNORE INTO player_posts
                     (player_id, platform, text, url, likes, comments, shares, views,
-                     engagement_rate, media_type, sentiment, sentiment_label, posted_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                     engagement_rate, media_type, sentiment, sentiment_label, posted_at, image_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         player_id,
                         item.get("platform"),
@@ -504,6 +526,7 @@ async def insert_player_posts(player_id, items):
                         item.get("sentiment"),
                         item.get("sentiment_label"),
                         item.get("posted_at"),
+                        item.get("image_url"),
                     ),
                 )
                 inserted += 1
@@ -909,16 +932,17 @@ async def finish_scan_log(scan_log_id, press_count, mentions_count, posts_count,
         await conn.commit()
 
 
-async def save_scan_report_with_log(player_id, scan_log_id, executive_summary, topics, brands, delta, summary_snapshot):
+async def save_scan_report_with_log(player_id, scan_log_id, executive_summary, topics, brands, delta, summary_snapshot, brand_details=None):
     async with aiosqlite.connect(DB_PATH) as conn:
         await conn.execute(
             """INSERT INTO scan_reports
-            (player_id, scan_log_id, executive_summary, topics_json, brands_json, delta_json, summary_snapshot_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (player_id, scan_log_id, executive_summary, topics_json, brands_json, delta_json, summary_snapshot_json, brand_details_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 player_id, scan_log_id, executive_summary,
                 json.dumps(topics), json.dumps(brands),
                 json.dumps(delta), json.dumps(summary_snapshot),
+                json.dumps(brand_details),
             ),
         )
         await conn.commit()
@@ -1477,6 +1501,56 @@ async def get_narrativas_active(player_id, limit=20):
         return rows
 
 
+async def resolve_narrativa_items(item_ids):
+    """Resolve item references like ['P12', 'S45', 'A3'] to actual content."""
+    if not item_ids:
+        return []
+
+    press_ids, social_ids, activity_ids = [], [], []
+    for ref in item_ids:
+        ref = str(ref).strip()
+        try:
+            if ref.startswith("P"):
+                press_ids.append(int(ref[1:]))
+            elif ref.startswith("S"):
+                social_ids.append(int(ref[1:]))
+            elif ref.startswith("A"):
+                activity_ids.append(int(ref[1:]))
+        except ValueError:
+            pass
+
+    results = []
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        if press_ids:
+            ph = ",".join("?" * len(press_ids))
+            cursor = await conn.execute(
+                f"SELECT id, source, title, url, sentiment_label FROM press_items WHERE id IN ({ph})",
+                press_ids)
+            for r in await cursor.fetchall():
+                results.append({"ref": f"P{r['id']}", "type": "press", "source": r["source"],
+                               "title": r["title"], "url": r["url"], "sentiment": r["sentiment_label"]})
+        if social_ids:
+            ph = ",".join("?" * len(social_ids))
+            cursor = await conn.execute(
+                f"SELECT id, platform, author, text, url, sentiment_label FROM social_mentions WHERE id IN ({ph})",
+                social_ids)
+            for r in await cursor.fetchall():
+                results.append({"ref": f"S{r['id']}", "type": "social", "source": r["platform"],
+                               "title": (r["text"] or "")[:120], "url": r["url"],
+                               "sentiment": r["sentiment_label"], "author": r["author"]})
+        if activity_ids:
+            ph = ",".join("?" * len(activity_ids))
+            cursor = await conn.execute(
+                f"SELECT id, platform, text, url, sentiment_label FROM player_posts WHERE id IN ({ph})",
+                activity_ids)
+            for r in await cursor.fetchall():
+                results.append({"ref": f"A{r['id']}", "type": "activity", "source": r["platform"],
+                               "title": (r["text"] or "")[:120], "url": r["url"],
+                               "sentiment": r["sentiment_label"]})
+    return results
+
+
 async def get_portfolio_intelligence():
     """Get latest risk score + critical narrativa count for all players."""
     async with aiosqlite.connect(DB_PATH) as conn:
@@ -1568,7 +1642,6 @@ async def get_player_stats(player_id):
 async def save_player_trends(player_id, trends):
     """Save Google Trends data for a player."""
     async with aiosqlite.connect(DB_PATH) as conn:
-        await conn.execute("DELETE FROM player_trends WHERE player_id = ?", (player_id,))
         await conn.execute(
             """INSERT INTO player_trends (player_id, average_interest, peak_interest,
                trend_direction, data_points, timeline_json)
@@ -1594,3 +1667,111 @@ async def get_player_trends(player_id):
             r["timeline"] = json.loads(r.get("timeline_json") or "[]")
             return r
         return None
+
+
+async def get_player_trends_history(player_id, limit=10):
+    """Get historical Google Trends snapshots for a player."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.execute(
+            "SELECT * FROM player_trends WHERE player_id = ? ORDER BY scraped_at DESC LIMIT ?",
+            (player_id, limit),
+        )
+        rows = await cursor.fetchall()
+        result = []
+        for row in rows:
+            r = dict(row)
+            r["timeline"] = json.loads(r.get("timeline_json") or "[]")
+            result.append(r)
+        return list(reversed(result))
+
+
+# ── D4: Market Value Functions ──
+
+def parse_market_value(value_str):
+    """Parse market value string like '€500K', '€1.5M', '€2m' to integer (euros)."""
+    if not value_str or not isinstance(value_str, str):
+        return 0
+    s = value_str.strip().replace("€", "").replace("$", "").replace("£", "").replace(",", "").strip()
+    s = s.lower()
+    multiplier = 1
+    if s.endswith("m") or s.endswith("mill") or s.endswith("mill."):
+        s = re.sub(r"(m|mill\.?)$", "", s).strip()
+        multiplier = 1_000_000
+    elif s.endswith("k") or s.endswith("mil"):
+        s = re.sub(r"(k|mil)$", "", s).strip()
+        multiplier = 1_000
+    try:
+        return int(float(s) * multiplier)
+    except (ValueError, TypeError):
+        return 0
+
+
+async def save_market_value(player_id, value_str):
+    """Save market value snapshot. Only inserts if value changed from last record."""
+    if not value_str:
+        return
+    numeric = parse_market_value(value_str)
+    async with aiosqlite.connect(DB_PATH) as conn:
+        cursor = await conn.execute(
+            "SELECT market_value FROM market_value_history WHERE player_id = ? ORDER BY recorded_at DESC LIMIT 1",
+            (player_id,),
+        )
+        last = await cursor.fetchone()
+        if last and last[0] == value_str:
+            return  # No change
+        await conn.execute(
+            "INSERT INTO market_value_history (player_id, market_value, market_value_numeric) VALUES (?, ?, ?)",
+            (player_id, value_str, numeric),
+        )
+        await conn.commit()
+
+
+async def get_market_value_history(player_id):
+    """Get all market value history for a player."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.execute(
+            "SELECT market_value, market_value_numeric, recorded_at FROM market_value_history WHERE player_id = ? ORDER BY recorded_at ASC",
+            (player_id,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+
+# ── D2: Activity Calendar ──
+
+async def get_activity_calendar(player_id, days=365):
+    """Get daily post counts for activity calendar heatmap."""
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.execute(
+            """SELECT date(posted_at) as day, COUNT(*) as count
+               FROM player_posts WHERE player_id = ? AND posted_at >= ?
+               GROUP BY date(posted_at) ORDER BY day""",
+            (player_id, cutoff),
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+
+# ── D3: Brand Collaborations ──
+
+async def get_brand_collaborations(player_id):
+    """Get brand collaboration details from the latest scan report."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.execute(
+            "SELECT brand_details_json, brands_json FROM scan_reports WHERE player_id = ? ORDER BY created_at DESC LIMIT 1",
+            (player_id,),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return []
+        details = json.loads(row["brand_details_json"] or "[]") if row["brand_details_json"] else []
+        if details:
+            return details
+        # Fallback: convert simple brands list to objects
+        brands = json.loads(row["brands_json"] or "{}")
+        return [{"brand": b, "type": "mencion", "count": c} for b, c in brands.items()]

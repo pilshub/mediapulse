@@ -10,7 +10,7 @@ from scrapers.press import scrape_all_press
 from scrapers.social import scrape_all_social
 from scrapers.player import scrape_all_player_posts
 from scrapers.trends import scrape_google_trends
-from analyzer import analyze_batch, analyze_images, generate_executive_summary, extract_topics_and_brands, generate_intelligence_report
+from analyzer import analyze_batch, analyze_images, generate_executive_summary, extract_topics_and_brands, generate_intelligence_report, analyze_alert_content
 
 log = logging.getLogger("agentradar")
 
@@ -103,6 +103,9 @@ async def run_scan(player_data: dict, update_status=True):
                         nationality=tm_data.get("nationality"),
                         position=tm_data.get("position"),
                     )
+                    # D4: Track market value history
+                    if tm_data.get("market_value"):
+                        await db.save_market_value(player_id, tm_data["market_value"])
                 # Scrape performance stats
                 tm_stats = await scrape_transfermarkt_stats(tm_id)
                 if tm_stats:
@@ -164,7 +167,7 @@ async def run_scan(player_data: dict, update_status=True):
 
         # Extract aggregated topics and brands
         all_items = press_new + social_new + player_new
-        topics, brands = extract_topics_and_brands(all_items)
+        topics, brands, brand_details = extract_topics_and_brands(all_items)
 
         # Store in DB
         if update_status:
@@ -178,7 +181,7 @@ async def run_scan(player_data: dict, update_status=True):
         # Check for alerts
         if update_status:
             scan_status["progress"] = "Comprobando alertas..."
-        alert_count = await _check_alerts(player_id, press_new, social_new)
+        alert_count = await _check_alerts(player_id, press_new, social_new, name)
 
         # Generate executive summary
         if update_status:
@@ -195,6 +198,7 @@ async def run_scan(player_data: dict, update_status=True):
             topics, brands,
             exec_report.get("delta"),
             current_summary,
+            brand_details=brand_details,
         )
 
         # Calculate and store Image Index
@@ -256,7 +260,7 @@ async def run_scan(player_data: dict, update_status=True):
             scan_status["running"] = False
 
 
-async def _check_alerts(player_id, press_items, social_items):
+async def _check_alerts(player_id, press_items, social_items, player_name=""):
     count = 0
 
     def _excerpt(text, max_len=100):
@@ -264,28 +268,34 @@ async def _check_alerts(player_id, press_items, social_items):
         text = (text or "").replace("\n", " ").strip()
         return text[:max_len] + "..." if len(text) > max_len else text
 
-    def _build_detail_lines(items, field="title", max_items=5):
-        """Build bullet-point list of item titles/texts for alert message."""
-        lines = []
-        for item in items[:max_items]:
-            text = _excerpt(item.get(field, "") or item.get("text", "") or item.get("title", ""))
-            source = item.get("source", "") or item.get("platform", "")
-            if text:
-                lines.append(f"- [{source}] {text}" if source else f"- {text}")
-        return "\n".join(lines)
+    def _dates_range(items, max_items=5):
+        """Extract published dates from items for temporal context."""
+        return [i.get("published_at", "") or i.get("created_at", "") for i in items[:max_items]]
+
+    async def _gpt_message(alert_type, items, fallback_msg):
+        """Try GPT analysis; fall back to template message."""
+        try:
+            analysis = await analyze_alert_content(alert_type, items, player_name)
+            return analysis or fallback_msg
+        except Exception as e:
+            log.warning(f"[alerts] GPT analysis failed for {alert_type}: {e}")
+            return fallback_msg
 
     # 1. High volume of negative press
     negative_press = [i for i in press_items if i.get("sentiment_label") == "negativo"]
     if len(negative_press) >= 3:
         sources = list(set(i.get("source", "?") for i in negative_press))
+        message = await _gpt_message("prensa_negativa", negative_press,
+            f"Se han identificado {len(negative_press)} noticias con sentimiento negativo en {', '.join(sources[:4])}.")
         await db.insert_alert(
             player_id, "prensa_negativa", "alta",
             f"Detectada cobertura negativa en prensa ({len(negative_press)} noticias)",
-            f"Se han identificado {len(negative_press)} noticias con sentimiento negativo en {', '.join(sources[:4])}. Revisar las fuentes para evaluar si se trata de una narrativa puntual o una tendencia sostenida.",
+            message,
             {"count": len(negative_press),
              "titles": [i.get("title", "") for i in negative_press[:5]],
              "urls": [i.get("url", "") for i in negative_press[:5]],
-             "sources_list": [i.get("source", "") for i in negative_press[:5]]},
+             "sources_list": [i.get("source", "") for i in negative_press[:5]],
+             "published_dates": _dates_range(negative_press)},
         )
         count += 1
 
@@ -299,15 +309,18 @@ async def _check_alerts(player_id, press_items, social_items):
                 platforms[p] = platforms.get(p, 0) + 1
             top_platform = max(platforms, key=platforms.get) if platforms else "redes"
             ratio_pct = round(len(negative_social) / len(social_items) * 100)
+            message = await _gpt_message("redes_negativas", negative_social,
+                f"El {ratio_pct}% de las menciones en redes sociales tienen sentimiento negativo. La plataforma mas afectada es {top_platform}.")
             await db.insert_alert(
                 player_id, "redes_negativas", "alta",
                 f"Sentimiento negativo dominante en redes ({ratio_pct}% de menciones)",
-                f"El {ratio_pct}% de las menciones en redes sociales tienen sentimiento negativo. La plataforma mas afectada es {top_platform}. Esto puede reflejar descontento de la aficion o reaccion a eventos recientes.",
+                message,
                 {"negative_ratio": round(len(negative_social) / len(social_items), 2),
                  "platforms": platforms,
                  "samples": [_excerpt(i.get("text", "")) for i in negative_social[:5]],
                  "urls": [i.get("url", "") for i in negative_social[:5]],
-                 "platforms_list": [i.get("platform", "") for i in negative_social[:5]]},
+                 "platforms_list": [i.get("platform", "") for i in negative_social[:5]],
+                 "published_dates": _dates_range(negative_social)},
             )
             count += 1
 
@@ -318,14 +331,17 @@ async def _check_alerts(player_id, press_items, social_items):
             s = item.get("source", "?")
             sources[s] = sources.get(s, 0) + 1
         top_source = max(sources, key=sources.get) if sources else "prensa"
+        message = await _gpt_message("trending", press_items,
+            f"El jugador aparece en {len(press_items)} noticias de {len(sources)} medios diferentes.")
         await db.insert_alert(
             player_id, "trending", "media",
             f"Alta presencia mediatica detectada ({len(press_items)} noticias)",
-            f"El jugador aparece en {len(press_items)} noticias de {len(sources)} medios diferentes. El medio con mayor cobertura es {top_source} ({sources.get(top_source, 0)} noticias). Indica un momento de alta visibilidad.",
+            message,
             {"count": len(press_items), "sources": sources,
              "titles": [i.get("title", "") for i in press_items[:5]],
              "urls": [i.get("url", "") for i in press_items[:5]],
-             "sources_list": [i.get("source", "") for i in press_items[:5]]},
+             "sources_list": [i.get("source", "") for i in press_items[:5]],
+             "published_dates": _dates_range(press_items)},
         )
         count += 1
 
@@ -333,13 +349,16 @@ async def _check_alerts(player_id, press_items, social_items):
     transfer_items = [i for i in press_items if "fichaje" in (i.get("topics") or [])]
     if transfer_items:
         sources = list(set(i.get("source", "?") for i in transfer_items))
+        message = await _gpt_message("rumor_fichaje", transfer_items,
+            f"Se han identificado {len(transfer_items)} noticias sobre un posible traspaso en {', '.join(sources[:3])}.")
         await db.insert_alert(
             player_id, "rumor_fichaje", "alta",
             f"Detectados rumores de fichaje ({len(transfer_items)} noticias)",
-            f"Se han identificado {len(transfer_items)} noticias relacionadas con un posible traspaso del jugador en {', '.join(sources[:3])}. Evaluar credibilidad de las fuentes y contexto del mercado.",
+            message,
             {"titles": [i.get("title", "") for i in transfer_items[:5]],
              "urls": [i.get("url", "") for i in transfer_items[:5]],
-             "sources_list": [i.get("source", "") for i in transfer_items[:5]]},
+             "sources_list": [i.get("source", "") for i in transfer_items[:5]],
+             "published_dates": _dates_range(transfer_items)},
         )
         count += 1
 
@@ -347,13 +366,16 @@ async def _check_alerts(player_id, press_items, social_items):
     injury_items = [i for i in press_items if "lesion" in (i.get("topics") or [])]
     if injury_items:
         sources = list(set(i.get("source", "?") for i in injury_items))
+        message = await _gpt_message("lesion", injury_items,
+            f"Se han detectado {len(injury_items)} noticias sobre una posible lesion en {', '.join(sources[:3])}.")
         await db.insert_alert(
             player_id, "lesion", "alta",
             f"Posible lesion mencionada en prensa ({len(injury_items)} noticias)",
-            f"Se han detectado {len(injury_items)} noticias que mencionan una posible lesion del jugador en {', '.join(sources[:3])}. Confirmar con fuentes oficiales del club.",
+            message,
             {"titles": [i.get("title", "") for i in injury_items[:5]],
              "urls": [i.get("url", "") for i in injury_items[:5]],
-             "sources_list": [i.get("source", "") for i in injury_items[:5]]},
+             "sources_list": [i.get("source", "") for i in injury_items[:5]],
+             "published_dates": _dates_range(injury_items)},
         )
         count += 1
 
@@ -361,14 +383,17 @@ async def _check_alerts(player_id, press_items, social_items):
     polemic_items = [i for i in press_items + social_items if "polemica" in (i.get("topics") or [])]
     if len(polemic_items) >= 2:
         n_sources = len(set(i.get('platform', i.get('source', '?')) for i in polemic_items))
+        message = await _gpt_message("polemica", polemic_items,
+            f"Se han encontrado {len(polemic_items)} menciones polemicas en {n_sources} fuentes distintas.")
         await db.insert_alert(
             player_id, "polemica", "alta",
             f"Polemica detectada en {n_sources} fuentes ({len(polemic_items)} menciones)",
-            f"Se han encontrado {len(polemic_items)} menciones polemicas del jugador en {n_sources} fuentes distintas. Monitorizar la evolucion para valorar impacto reputacional.",
+            message,
             {"count": len(polemic_items),
              "samples": [_excerpt(i.get("text", "") or i.get("title", "")) for i in polemic_items[:5]],
              "urls": [i.get("url", "") for i in polemic_items[:5]],
-             "platforms_list": [i.get("platform", i.get("source", "")) for i in polemic_items[:5]]},
+             "platforms_list": [i.get("platform", i.get("source", "")) for i in polemic_items[:5]],
+             "published_dates": _dates_range(polemic_items)},
         )
         count += 1
 

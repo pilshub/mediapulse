@@ -180,7 +180,7 @@
 
         <!-- Date Range Filter (arriba para que se vea el periodo) -->
         <div id="date-range-bar" class="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4 bg-dark-800 rounded-xl p-2 sm:p-3 border border-gray-800">
-            <span class="text-xs text-gray-500 uppercase tracking-wider">Periodo:</span>
+            <span class="text-xs text-gray-500 uppercase tracking-wider">Periodo <span class="text-[9px] text-gray-600 normal-case">(hora Espana)</span>:</span>
             <div class="flex gap-1 sm:gap-2 flex-wrap">
                 <button onclick="setDateRange('7d')" data-range="7d" class="date-range-btn active touch-target" data-tooltip="Ultimos 7 dias">7d</button>
                 <button onclick="setDateRange('30d')" data-range="30d" class="date-range-btn touch-target" data-tooltip="Ultimos 30 dias">30d</button>
@@ -239,10 +239,10 @@
             <button onclick="switchTab('prensa')" data-tab="prensa" class="tab-btn active px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Noticias de prensa deportiva digital" data-tooltip-pos="below">Prensa</button>
             <button onclick="switchTab('redes')" data-tab="redes" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Menciones de terceros en redes sociales" data-tooltip-pos="below">Menciones</button>
             <button onclick="switchTab('actividad')" data-tab="actividad" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Publicaciones propias del jugador" data-tooltip-pos="below">Sus Redes</button>
-            <button onclick="switchTab('alertas')" data-tab="alertas" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Alertas automaticas: fichajes, lesiones, polemica" data-tooltip-pos="below">Alertas <span id="alert-badge" class="hidden ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full"></span></button>
+            <button onclick="switchTab('alertas')" data-tab="alertas" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Alertas automaticas basadas en umbrales: prensa negativa, redes negativas, trending, fichajes, lesiones, polemicas e inactividad" data-tooltip-pos="below">Alertas <span id="alert-badge" class="hidden ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full"></span></button>
             <button onclick="switchTab('historial')" data-tab="historial" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Historial de escaneos y comparacion" data-tooltip-pos="below">Historial</button>
             <button onclick="switchTab('historico')" data-tab="historico" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Graficos de evolucion temporal" data-tooltip-pos="below">Graficos</button>
-            <button onclick="switchTab('inteligencia')" data-tab="inteligencia" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Analisis de riesgo con IA y narrativas" data-tooltip-pos="below">Inteligencia <span id="risk-badge" class="hidden ml-1 text-xs px-1.5 py-0.5 rounded-full"></span></button>
+            <button onclick="switchTab('inteligencia')" data-tab="inteligencia" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Analisis estrategico de riesgos por IA: narrativas, tendencias, stats, valor de mercado y colaboraciones" data-tooltip-pos="below">Inteligencia <span id="risk-badge" class="hidden ml-1 text-xs px-1.5 py-0.5 rounded-full"></span></button>
             <button onclick="switchTab('informe')" data-tab="informe" class="tab-btn px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap touch-target" data-tooltip="Informes semanales con recomendaciones" data-tooltip-pos="below">Informe</button>
         </div>
 

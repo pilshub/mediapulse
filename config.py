@@ -169,7 +169,7 @@ WEEKLY_REPORT_MINUTE = 0
 INTELLIGENCE_ENABLED = os.getenv("INTELLIGENCE_ENABLED", "true").lower() == "true"
 INTELLIGENCE_MAX_INPUT_ITEMS = int(os.getenv("INTELLIGENCE_MAX_INPUT_ITEMS", "200"))
 INTELLIGENCE_LOOKBACK_DAYS = int(os.getenv("INTELLIGENCE_LOOKBACK_DAYS", "7"))
-INTELLIGENCE_MAX_TOKENS = int(os.getenv("INTELLIGENCE_MAX_TOKENS", "3000"))
+INTELLIGENCE_MAX_TOKENS = int(os.getenv("INTELLIGENCE_MAX_TOKENS", "4000"))
 RISK_CATEGORIES = [
     "reputacion_personal", "legal", "rendimiento", "fichaje",
     "lesion", "disciplina", "comercial", "imagen_publica",

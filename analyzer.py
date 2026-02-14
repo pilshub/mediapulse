@@ -305,19 +305,72 @@ async def analyze_images(items, player_name="", max_images=10):
     return items
 
 
+async def analyze_alert_content(alert_type, items, player_name, max_items=5):
+    """Generate a brief GPT analysis of WHY this alert matters — reads actual content."""
+    if not client or not items:
+        return None
+    texts = []
+    for item in items[:max_items]:
+        title = item.get("title", "") or item.get("text", "")
+        summary = item.get("summary", "") or item.get("full_text", "")
+        source = item.get("source", "") or item.get("platform", "")
+        texts.append(f"[{source}] {title[:150]} — {summary[:200]}")
+
+    prompt = f"""Analiza brevemente estas {len(texts)} fuentes sobre {player_name} y explica en 2-3 frases:
+1. De que tratan exactamente (tema principal)
+2. Por que es relevante o preocupante para el jugador
+3. Si hay patron o narrativa comun
+
+Fuentes:
+{chr(10).join(texts)}
+
+Responde en espanol, tono directo y profesional. Solo 2-3 frases, sin bullet points."""
+
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=200,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        log.error(f"[analyzer] Alert content analysis error: {e}")
+        return None
+
+
 def extract_topics_and_brands(all_items):
     """Aggregate topics and brands from analyzed items."""
     topics = {}
     brands = {}
+    brand_items = {}  # brand -> list of item sources
     for item in all_items:
         for t in item.get("topics") or []:
             topics[t] = topics.get(t, 0) + 1
         for b in item.get("brands") or []:
-            brands[b] = brands.get(b, 0) + 1
+            if isinstance(b, dict):
+                bname = b.get("brand", b.get("name", ""))
+                btype = b.get("type", "mencion")
+            else:
+                bname = str(b)
+                btype = "mencion"
+            if not bname:
+                continue
+            brands[bname] = brands.get(bname, 0) + 1
+            if bname not in brand_items:
+                brand_items[bname] = {"brand": bname, "type": btype, "count": 0, "sources": []}
+            brand_items[bname]["count"] += 1
+            src = item.get("source") or item.get("platform") or ""
+            if src and src not in brand_items[bname]["sources"]:
+                brand_items[bname]["sources"].append(src)
+            # Upgrade type: if found in player posts, it's likely a collaboration
+            if item.get("platform") in ("instagram", "twitter", "tiktok") and not item.get("source"):
+                brand_items[bname]["type"] = "colaboracion"
     # Sort by count descending
     topics = dict(sorted(topics.items(), key=lambda x: -x[1]))
     brands = dict(sorted(brands.items(), key=lambda x: -x[1]))
-    return topics, brands
+    brand_details = sorted(brand_items.values(), key=lambda x: -x["count"])
+    return topics, brands, brand_details
 
 
 # ── Intelligence / Early Detection ──
@@ -363,6 +416,25 @@ IMPORTANTE: NO pongas 35 por defecto. Calcula el riesgo REAL basado en:
 - Volumen de cobertura (mas items = mas relevancia)
 - Diversidad de fuentes (si lo cubren prensa + redes = mas serio)
 - PESO de las fuentes: una noticia en Marca/AS vale mas que 10 tweets
+
+EXTRACCION EXHAUSTIVA - Analiza TODAS estas dimensiones obligatoriamente:
+1. REPUTACION PERSONAL: Relaciones, vida nocturna, redes sociales polemicas, amistades, declaraciones controvertidas
+2. LEGAL: Denuncias, investigaciones, problemas con Hacienda, sanciones FIFA/UEFA/RFEF, dopaje
+3. RENDIMIENTO: Estadisticas recientes vs historicas, comparativas, cambio de rol en equipo, suplencias
+4. MERCADO DE FICHAJES: Clubes interesados (nombrarlos), valor de mercado, clausula, situacion contractual
+5. LESIONES: Tipo de lesion, tiempo estimado de baja, historial de recaidas, fiabilidad fisica
+6. DISCIPLINA: Tarjetas acumuladas, expulsiones, conflictos con arbitros, altercados en vestuario
+7. VALOR COMERCIAL: Sponsors activos/perdidos, engagement en redes, potencial de marca personal
+8. IMAGEN PUBLICA: Percepcion de la aficion, trending topics, memes/viralidad
+
+CRUCE DE FUENTES - Para cada narrativa, compara:
+- Lo que dice la prensa vs lo que dicen las redes (hay discrepancia?)
+- Lo que publica el jugador vs lo que dice la prensa (hay contradiccion?)
+- Tendencia en diferentes mercados (prensa espanola vs internacional)
+
+CONTEXTO TEMPORAL - Para cada narrativa, indica:
+- Cuando empezo (primer item detectado)
+- Velocidad: si algo aparece en 1 fuente = rumor, en 3+ = narrativa, en 5+ = tendencia
 {performance_context}
 REGLAS:
 1. Agrupa items del MISMO tema/historia en una narrativa (minimo 2 items para formar narrativa)
@@ -411,20 +483,23 @@ async def generate_intelligence_report(player_id, player_name, club, scan_log_id
     # Build token-efficient digest: 1 line per item
     digest_lines = []
     for item in press:
-        title = (item.get('title', '') or '')[:80]
-        summary = (item.get('summary', '') or '').replace('\n', ' ')[:120]
+        title = (item.get('title', '') or '')[:120]
+        summary = (item.get('summary', '') or '').replace('\n', ' ')[:200]
+        url_short = (item.get('url', '') or '')[:80]
         digest_lines.append(
-            f"P{item['id']}|prensa|{item.get('source', '')}|{item.get('sentiment_label', 'neutro')}|{title}|{summary}"
+            f"P{item['id']}|prensa|{item.get('source', '')}|{item.get('sentiment_label', 'neutro')}|{title}|{summary}|{url_short}"
         )
     for item in social:
-        text = (item.get("text", "") or "").replace("\n", " ")[:80]
+        text = (item.get("text", "") or "").replace("\n", " ")[:120]
         digest_lines.append(
             f"S{item['id']}|{item.get('platform', '')}|{(item.get('author', '') or '')[:20]}|{item.get('sentiment_label', 'neutro')}|{text}"
         )
     for item in posts:
-        text = (item.get("text", "") or "").replace("\n", " ")[:80]
+        text = (item.get("text", "") or "").replace("\n", " ")[:120]
+        eng = item.get("engagement_rate", 0) or 0
+        likes = item.get("likes", 0) or 0
         digest_lines.append(
-            f"A{item['id']}|{item.get('platform', '')}|{item.get('sentiment_label', 'neutro')}|{text}"
+            f"A{item['id']}|{item.get('platform', '')}|{item.get('sentiment_label', 'neutro')}|eng:{eng:.3f}|likes:{likes}|{text}"
         )
 
     # Add sentiment summary at the top of digest
