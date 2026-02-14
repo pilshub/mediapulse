@@ -233,6 +233,25 @@ async def scrape_all_press(player_name, club=None, limit_multiplier=1):
         )
         all_items = google + site_search + rss_feeds
 
+    # Filter out non-article pages (Transfermarkt profiles, stats pages, etc.)
+    _profile_patterns = [
+        "/profil/spieler/", "/transfers/spieler/", "/leistungsdaten/spieler/",
+        "/marktwertverlauf/spieler/", "/statistik/spieler/", "/national/spieler/",
+        "/erfolge/spieler/", "/rueckennummern/spieler/",
+        "/perfil/jugador/", "/rendimiento/jugador/", "/historial/jugador/",
+    ]
+    filtered_items = []
+    profile_removed = 0
+    for item in all_items:
+        url = (item.get("url") or "").lower()
+        if any(pat in url for pat in _profile_patterns):
+            profile_removed += 1
+            continue
+        filtered_items.append(item)
+    if profile_removed:
+        log.info(f"[press] Filtered out {profile_removed} profile/stats pages (non-articles)")
+    all_items = filtered_items
+
     # Dedup by URL
     seen = set()
     unique = []
