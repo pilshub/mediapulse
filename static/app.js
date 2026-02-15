@@ -226,32 +226,33 @@ async function loadDashboard(playerId) {
     loadLastScan(playerId);
     loadCosts();
 
-    // Load all data in parallel
+    // Load all data in parallel (all with .catch for resilience)
+    const safeFetch = (url, fallback) => fetch(url).then(r => r.ok ? r.json() : fallback).catch(() => fallback);
     const [summary, report, press, social, activity, alerts, stats, scans, imageIndex, weeklyReports,
            sentByPlatform, activityPeaks, topInfluencers, idxHistory, intelligence,
            activityCalendar, marketValueHistory, collaborations, trendsHistory,
            sofascoreRatings, activityByPlatform] = await Promise.all([
-        fetch(`/api/summary?player_id=${playerId}${dp}`).then(r => r.json()),
-        fetch(`/api/report?player_id=${playerId}`).then(r => r.json()).catch(() => null),
-        fetch(`/api/press?player_id=${playerId}${dp}`).then(r => r.json()),
-        fetch(`/api/social?player_id=${playerId}${dp}`).then(r => r.json()),
-        fetch(`/api/activity?player_id=${playerId}${dp}`).then(r => r.json()),
-        fetch(`/api/alerts?player_id=${playerId}`).then(r => r.json()),
-        fetch(`/api/stats?player_id=${playerId}${dp}`).then(r => r.json()),
-        fetch(`/api/scans?player_id=${playerId}`).then(r => r.json()).catch(() => []),
-        fetch(`/api/player/${playerId}/image-index`).then(r => r.json()).catch(() => null),
-        fetch(`/api/player/${playerId}/weekly-reports?limit=5`).then(r => r.json()).catch(() => []),
-        fetch(`/api/player/${playerId}/sentiment-by-platform`).then(r => r.json()).catch(() => []),
-        fetch(`/api/player/${playerId}/activity-peaks`).then(r => r.json()).catch(() => null),
-        fetch(`/api/player/${playerId}/top-influencers`).then(r => r.json()).catch(() => []),
-        fetch(`/api/player/${playerId}/image-index-history`).then(r => r.json()).catch(() => []),
-        fetch(`/api/player/${playerId}/intelligence`).then(r => r.json()).catch(() => null),
-        fetch(`/api/player/${playerId}/activity-calendar`).then(r => r.json()).catch(() => []),
-        fetch(`/api/player/${playerId}/market-value-history`).then(r => r.json()).catch(() => []),
-        fetch(`/api/player/${playerId}/collaborations`).then(r => r.json()).catch(() => []),
-        fetch(`/api/player/${playerId}/trends/history`).then(r => r.json()).catch(() => []),
-        fetch(`/api/player/${playerId}/sofascore-ratings`).then(r => r.json()).catch(() => ({ratings: [], stats: null})),
-        fetch(`/api/player/${playerId}/activity-by-platform`).then(r => r.json()).catch(() => ({})),
+        safeFetch(`/api/summary?player_id=${playerId}${dp}`, {press_count:0,mentions_count:0,posts_count:0,alerts_count:0}),
+        safeFetch(`/api/report?player_id=${playerId}`, null),
+        safeFetch(`/api/press?player_id=${playerId}${dp}`, []),
+        safeFetch(`/api/social?player_id=${playerId}${dp}`, []),
+        safeFetch(`/api/activity?player_id=${playerId}${dp}`, []),
+        safeFetch(`/api/alerts?player_id=${playerId}`, []),
+        safeFetch(`/api/stats?player_id=${playerId}${dp}`, {}),
+        safeFetch(`/api/scans?player_id=${playerId}`, []),
+        safeFetch(`/api/player/${playerId}/image-index`, null),
+        safeFetch(`/api/player/${playerId}/weekly-reports?limit=5`, []),
+        safeFetch(`/api/player/${playerId}/sentiment-by-platform`, []),
+        safeFetch(`/api/player/${playerId}/activity-peaks`, null),
+        safeFetch(`/api/player/${playerId}/top-influencers`, []),
+        safeFetch(`/api/player/${playerId}/image-index-history`, []),
+        safeFetch(`/api/player/${playerId}/intelligence`, null),
+        safeFetch(`/api/player/${playerId}/activity-calendar`, []),
+        safeFetch(`/api/player/${playerId}/market-value-history`, []),
+        safeFetch(`/api/player/${playerId}/collaborations`, []),
+        safeFetch(`/api/player/${playerId}/trends/history`, []),
+        safeFetch(`/api/player/${playerId}/sofascore-ratings`, {ratings: [], stats: null}),
+        safeFetch(`/api/player/${playerId}/activity-by-platform`, {}),
     ]);
 
     // Store data for search/filter
@@ -293,16 +294,17 @@ async function loadDashboard(playerId) {
     // Render topics & brands (word cloud)
     renderTopicsAndBrands(report);
 
-    // Render tabs
-    renderPress(press, stats);
-    renderSocial(social, stats, sentByPlatform, topInfluencers);
-    renderActivity(activity, stats, activityPeaks, activityCalendar, activityByPlatform);
-    renderAlerts(alerts);
-    renderHistorial(scans);
-    renderHistorico(stats);
-    renderInteligencia(intelligence, collaborations, trendsHistory);
-    renderRendimiento(intelligence, marketValueHistory, sofascoreRatings);
-    renderInforme(weeklyReports, imageIndex);
+    // Render tabs (each wrapped in try/catch so one failure doesn't kill the dashboard)
+    const safeRender = (fn, ...args) => { try { fn(...args); } catch(e) { console.error(`Render error in ${fn.name}:`, e); } };
+    safeRender(renderPress, press, stats);
+    safeRender(renderSocial, social, stats, sentByPlatform, topInfluencers);
+    safeRender(renderActivity, activity, stats, activityPeaks, activityCalendar, activityByPlatform);
+    safeRender(renderAlerts, alerts);
+    safeRender(renderHistorial, scans);
+    safeRender(renderHistorico, stats);
+    safeRender(renderInteligencia, intelligence, collaborations, trendsHistory);
+    safeRender(renderRendimiento, intelligence, marketValueHistory, sofascoreRatings);
+    safeRender(renderInforme, weeklyReports, imageIndex);
 
     switchTab('inteligencia');
 }
@@ -2494,17 +2496,26 @@ function escapeHtml(text) {
         const players = await fetch('/api/players').then(r => r.json());
         if (players && players.length > 0) {
             // Find first player with scan data
+            let playerWithData = null;
             for (const p of players) {
                 try {
-                    const summary = await fetch(`/api/summary?player_id=${p.id}`).then(r => r.json());
-                    if (summary.press_count > 0 || summary.mentions_count > 0 || summary.posts_count > 0) {
-                        currentPlayer = p;
-                        await loadDashboard(p.id);
-                        return;
+                    const summary = await fetch(`/api/summary?player_id=${p.id}`).then(r => r.ok ? r.json() : null);
+                    if (summary && (summary.press_count > 0 || summary.mentions_count > 0 || summary.posts_count > 0)) {
+                        playerWithData = p;
+                        break;
                     }
-                } catch (e) {}
+                } catch (e) { console.warn('Summary check failed for', p.name, e); }
             }
-            // Players exist but none scanned -> show portfolio/selector
+            if (playerWithData) {
+                currentPlayer = playerWithData;
+                try {
+                    await loadDashboard(playerWithData.id);
+                    return;
+                } catch (e) {
+                    console.error('loadDashboard failed, showing selector:', e);
+                }
+            }
+            // Show portfolio selector with view option
             document.getElementById('setup-panel').classList.add('hidden');
             showPortfolioSelector(players);
             return;
@@ -2515,7 +2526,7 @@ function escapeHtml(text) {
     // No players at all -> show setup panel
 })();
 
-// -- Portfolio selector (shown when players exist but none scanned) --
+// -- Portfolio selector (shown when players exist) --
 function showPortfolioSelector(players) {
     const container = document.getElementById('dashboard');
     container.classList.remove('hidden');
@@ -2524,7 +2535,7 @@ function showPortfolioSelector(players) {
             <div class="text-center mb-6 sm:mb-8">
                 <img src="/static/logo.svg" alt="MediaPulse" class="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4">
                 <h2 class="text-xl sm:text-2xl font-bold text-white">Media<span class="text-accent">Pulse</span></h2>
-                <p class="text-gray-500 mt-2 text-sm">Selecciona un jugador para escanear</p>
+                <p class="text-gray-500 mt-2 text-sm">Selecciona un jugador</p>
             </div>
             <div class="space-y-2 sm:space-y-3">
                 ${players.map(p => {
@@ -2537,17 +2548,25 @@ function showPortfolioSelector(players) {
                         p.instagram ? `<span class="text-[#e1306c]">IG</span> @${p.instagram}` : '',
                     ].filter(Boolean).join(' &middot; ');
                     return `
-                    <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4 flex items-center gap-3 sm:gap-4 cursor-pointer hover:border-accent/50 transition group"
-                         onclick="selectAndScan(${JSON.stringify(p).replace(/"/g, '&quot;')})">
-                        ${photoHtml}
-                        <div class="flex-1 min-w-0">
-                            <div class="font-semibold text-white text-sm sm:text-base group-hover:text-accent transition">${p.name}</div>
-                            <div class="text-xs text-gray-500">${p.club || ''} ${p.market_value ? '| ' + p.market_value : ''}</div>
-                            ${socials ? `<div class="text-[10px] text-gray-600 mt-0.5">${socials}</div>` : ''}
+                    <div class="bg-dark-700 rounded-xl border border-gray-800 p-3 sm:p-4 flex items-center gap-3 sm:gap-4 hover:border-accent/50 transition group">
+                        <div class="cursor-pointer flex items-center gap-3 flex-1 min-w-0" onclick="selectAndView(${p.id})">
+                            ${photoHtml}
+                            <div class="min-w-0">
+                                <div class="font-semibold text-white text-sm sm:text-base group-hover:text-accent transition">${p.name}</div>
+                                <div class="text-xs text-gray-500">${p.club || ''} ${p.market_value ? '| ' + p.market_value : ''}</div>
+                                ${socials ? `<div class="text-[10px] text-gray-600 mt-0.5">${socials}</div>` : ''}
+                            </div>
                         </div>
-                        <button class="bg-accent hover:bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition touch-target flex-shrink-0">
-                            Escanear
-                        </button>
+                        <div class="flex gap-2 flex-shrink-0">
+                            <button onclick="selectAndView(${p.id})"
+                                class="bg-accent hover:bg-blue-600 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition touch-target">
+                                Ver datos
+                            </button>
+                            <button onclick="selectAndScan(${JSON.stringify(p).replace(/"/g, '&quot;')})"
+                                class="bg-dark-600 hover:bg-dark-500 text-gray-300 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition touch-target border border-gray-700">
+                                Re-escanear
+                            </button>
+                        </div>
                     </div>`;
                 }).join('')}
             </div>
@@ -2561,6 +2580,15 @@ function showPortfolioSelector(players) {
     `;
 }
 
+async function selectAndView(playerId) {
+    try {
+        await loadDashboard(playerId);
+    } catch (e) {
+        console.error('Error loading dashboard:', e);
+        alert('Error cargando dashboard: ' + e.message);
+    }
+}
+
 async function selectAndScan(player) {
     document.getElementById('dashboard').classList.add('hidden');
     document.getElementById('scan-progress').classList.remove('hidden');
@@ -2572,7 +2600,7 @@ async function selectAndScan(player) {
         instagram: player.instagram || null,
         club: player.club || null,
         transfermarkt_id: player.transfermarkt_id || null,
-        tiktok: player.tiktok || null,
+        sofascore_url: player.sofascore_url || null,
     };
 
     try {
